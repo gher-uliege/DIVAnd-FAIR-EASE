@@ -8,13 +8,20 @@ using NCDatasets
 using OrderedCollections
 
 """
-    prepare_query(parameter, unit, mintemporal:, maxtemporal, mindepth, maxdept, minlon, maxlon, minlat, maxlat)
+    prepare_query(parameter, unit, datestart, dateend, mindepth, maxdept, minlon, maxlon, minlat, maxlat)
 
 Prepare the JSON query that will be passed to the API.
 """
-function prepare_query(parameter::String, unit::String, mintemporal::Int64, maxtemporal::Int64, 
-        mindepth::Float64, maxdepth::Float64, minlon::Float64, maxlon::Float64, minlat::Float64, maxlat::Float64)
+function prepare_query(parameter::String, unit::String, datestart::Date, dateend::Date, 
+        mindepth::Float64, maxdepth::Float64, minlon::Float64, maxlon::Float64, minlat::Float64, maxlat::Float64;
+        dateref::Date=Dates.Date(1950, 1, 1)
+        )
+
+    mintemporal = (datestart - dateref).value
+    maxtemporal = (dateend - dateref).value
+
     
+    # Start with an ordered dictionary, then convert to JSON
     paramdict = OrderedDict(
     "query_parameters" => [
     OrderedDict("data_parameter" => parameter,
@@ -56,7 +63,7 @@ end
 Read the netCDF obtained from the API call.
 """
 function read_netcdf(datafile::AbstractString)
-    NCDataset("./test.nc", "r") do df
+    NCDataset(datafile, "r") do df
         lon = df["LONGITUDE"][:] 
         lat = df["LATITUDE"][:] 
         depth = df["DEPTH"][:]
