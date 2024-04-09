@@ -4,40 +4,294 @@
 using Markdown
 using InteractiveUtils
 
+# This Pluto notebook uses @bind for interactivity. When running this notebook outside of Pluto, the following 'mock version' of @bind gives bound variables a default value (instead of an error).
+macro bind(def, element)
+    quote
+        local iv = try Base.loaded_modules[Base.PkgId(Base.UUID("6e696c72-6542-2067-7265-42206c756150"), "AbstractPlutoDingetjes")].Bonds.initial_value catch; b -> missing; end
+        local el = $(esc(element))
+        global $(esc(def)) = Core.applicable(Base.get, el) ? Base.get(el) : iv(el)
+        el
+    end
+end
+
 # ╔═╡ 557eda82-f679-11ee-274e-37137b03fb0f
 begin
 	using HTTP
 	using JSON
+	using JSON3
 	using Dates
 	using NCDatasets
 	using OrderedCollections
 	using PyPlot
 	const plt = PyPlot
 	using PyCall
-	include("./ArgoFairEase.jl")
+	using PlutoUI
+	using Markdown
+	using InteractiveUtils
+	using HypertextLiteral
 	mpl = pyimport("matplotlib")
 	mpl.style.use("./fairease.mplstyle")
 end
 
-# ╔═╡ 0c8461be-9a83-434d-adeb-2f2e62d4832f
-pwd()
+# ╔═╡ 05def578-6786-4713-af46-ac58b334f5c7
+begin
+	using Conda
+	Conda.add("cartopy");	
+	ccrs = pyimport("cartopy.crs")
+	cfeature = pyimport("cartopy.feature")
+	coast = cfeature.GSHHSFeature(scale="h")
+	dataproj = ccrs.PlateCarree();
+end;
+
+# ╔═╡ de7029a9-a5a5-4cea-82e1-43f596c2b617
+function prepare_query(parameter::String, unit::String, datestart::Date, dateend::Date, mindepth::Float64, maxdepth::Float64, minlon::Float64, maxlon::Float64, minlat::Float64, maxlat::Float64; 
+dateref::Date=Dates.Date(1950, 1, 1))
+
+    mintemporal = (datestart - dateref).value
+    maxtemporal = (dateend - dateref).value
+
+    
+    # Start with an ordered dictionary, then convert to JSON
+    paramdict = OrderedDict(
+    "query_parameters" => [
+    OrderedDict("data_parameter" => parameter,
+        "unit"=> unit,
+        "skip_fill_values" => true,
+        "alias"=> "sea_water_temperature"),
+    OrderedDict("data_parameter"=> "time",
+        "unit"=> "days since 1950-01-01 00:00:00 UTC",
+        "skip_fill_values"=> false,
+        "alias"=> "TEMPORAL"),
+    OrderedDict("data_parameter"=> "sea_water_pressure",
+        "unit"=> "decibar",
+        "include_original_data"=> false,
+        "alias"=> "DEPTH"),
+    OrderedDict("data_parameter"=> "longitude",
+        "unit"=> "degree_east",
+        "skip_fill_values"=> false,
+        "alias"=> "LONGITUDE"),
+    OrderedDict("data_parameter"=> "latitude",
+        "unit"=> "degree_north",
+        "skip_fill_values"=> false,
+        "alias"=> "LATITUDE")],
+    "filters"=> [
+        OrderedDict("for_query_parameter" => Dict("alias"=> "TEMPORAL"), "min"=> mintemporal, "max"=> maxtemporal),
+        OrderedDict("for_query_parameter" => Dict("alias"=> "DEPTH"), "min"=> mindepth, "max"=> maxdepth),
+        OrderedDict("for_query_parameter" => Dict("alias"=> "LONGITUDE"), "min"=> minlon, "max"=> maxlon),
+        OrderedDict("for_query_parameter" => Dict("alias"=> "LATITUDE"), "min"=> minlat, "max"=> maxlat)
+    ],
+    "output" => Dict("format"=> "netcdf")
+    )
+
+    body = JSON3.write(paramdict)
+    return body::String
+end
+
+# ╔═╡ 4a823c93-6120-4204-ba4d-3b5558fc8e8d
+beaconURL = ENV["beaconURL"];
+
+# ╔═╡ e7ae81f3-970e-4d3f-936f-3073b1063e5c
+md"""
+## Select parameters
+### Variable name
+"""
+
+# ╔═╡ 9d3aa9d8-ab25-48b3-aede-428c9d960815
+@bind parameter Select(["sea_water_temperature",  "sea_water_salinity", 
+        "mass_concentration_of_chlorophyll_a_in_sea_water", "moles_of_nitrate_per_unit_mass_in_sea_water"])
+
+# ╔═╡ f7510e4d-5814-4511-bcc3-27df3db89a30
+md"""
+### Units
+"""
+
+# ╔═╡ 9b9716d9-d363-4e3c-be27-98ddcf9600e6
+@bind units Select(["degree_Celsius", "psu", "mg/m3", "micromole/kg"])
+
+# ╔═╡ 5915e937-63ae-4ebb-99ce-01bfa9b40b63
+md"""
+### Period of interest
+"""
+
+# ╔═╡ 1803fa0b-45a4-443a-80d8-054537137f67
+begin
+	datestart = Dates.Date(2020, 1, 1)
+	dateend = Dates.Date(2021, 12, 31)
+end
+
+# ╔═╡ b9c9921b-b41a-480e-b0ac-fca6e652dc22
+md"""
+### Domain and depth of interest
+"""
+
+# ╔═╡ 775ce187-9ce5-4e75-aab8-b2153e7a5c29
+begin
+	minlon = 25.975
+	maxlon = 43.7
+	minlat = 39.80
+	maxlat = 48.32
+	regionname = "BlackSea"
+	mindepth = 0. #Minimum water depth
+	maxdepth = 50. #Maximum water depth
+end
+
+# ╔═╡ 37ad43bd-432d-49f7-8d48-27e9831a3111
+md"""
+### 🌍 Interactive map ([`Leaflet`](https://leafletjs.com/))
+[`EMODnet Bathymetry`](https://www.emodnet-bathymetry.eu/) and coastline as basemap.
+"""
+
+# ╔═╡ a2d61983-0042-405f-ada9-1024e86c1644
+@htl("""
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	
+	<title>Domain of interest</title>
+	
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.8.0/dist/leaflet.css" integrity="sha512-hoalWLoI8r4UszCkZ5kL8vayOGVae1oxXe/2A4AO6J9+580uKHDO3JdHb7NzwwzK5xr/Fs0W40kiNHxM9vyTtQ==" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.8.0/dist/leaflet.js" integrity="sha512-BB3hKbKWOc9Ez/TAwyWxNXeoV9c1v6FIeYiBieIWkpLjauysF18NzgR1MBNBXf8/KABdlkX68nAhlwcDFLGPCQ==" crossorigin=""></script>
+
+	<style>
+		html, body {
+			height: 100%;
+			margin: 0;
+		}
+		.leaflet-container {
+			height: 400px;
+			width: 600px;
+			max-width: 100%;
+			max-height: 100%;
+		}
+	</style>
+
+<body>
+
+<div id="map" style="width: 600px; height: 400px;"></div>
+<script>
+
+	//var map = L.map('map').setView([0.5*$(minlon)+$(maxlon)), 0.5*($(minlat)+$(maxlat))], 6);
+
+	var map = L.map('map').setView([10., 0.], 6);
+
+	var polygon = L.polygon([
+		[$(minlat), $(minlon)],
+		[$(minlat), $(maxlon)],
+		[$(maxlat), $(maxlon)],
+		[$(maxlat), $(minlon)]
+	]).addTo(map);
+
+	var bathy = L.tileLayer.wms("https://ows.emodnet-bathymetry.eu/wms", {
+	    layers: ['emodnet:mean_atlas_land', 'coastlines'],
+		format: 'image/png',
+	    transparent: true,
+	    attribution: "EMODnet Bathymetry"
+	}).addTo(map);
+
+	var southWest = new L.LatLng($(minlat), $(minlon)),
+    	northEast = new L.LatLng($(maxlat), $(maxlon)),
+    	bounds = new L.LatLngBounds(southWest, northEast);
+
+	map.fitBounds(bounds);
+</script>
+""")
+
+# ╔═╡ 0020634a-d792-4ace-bd74-ab565dfaa86d
+md"""
+## Query body based on input fields
+"""
+
+# ╔═╡ 7e741d55-ea1f-449e-939e-036259742653
+@time query = prepare_query(parameter, units, datestart, dateend, 
+    mindepth, maxdepth, minlon, maxlon, minlat, maxlat);
+
+# ╔═╡ c35fcaf8-6183-458c-8ff1-f3f2710670ee
+md"""
+### Perform request and write into netCDF file
+"""
+
+# ╔═╡ b5d4f777-6ac0-4e84-9179-e96e25f8d542
+begin 
+	filename = "./data/Argo_$(parameter)_$(regionname)_$(Dates.format(datestart, "yyyymmdd"))-$(Dates.format(dateend, "yyyymmdd"))_$(Int(mindepth))-$(Int(maxdepth))m.nc";
+	
+	@time open(filename, "w") do io
+	    HTTP.request("POST", "$(beaconURL)/api/query", 
+	    ["Content-Type" => "application/json"], query,
+	    response_stream=io);
+	end;
+end;
+
+# ╔═╡ 921f570e-6c64-4b3e-a7c9-beb9db7ef4c9
+md"""
+### Read netCDF content
+"""
+
+# ╔═╡ b64bc67d-ab2e-47a3-9f5f-0092f7917970
+function read_netcdf(datafile::AbstractString)
+    NCDataset(datafile, "r") do df
+        lon = df["LONGITUDE"][:] 
+        lat = df["LATITUDE"][:] 
+        depth = df["DEPTH"][:]
+        time = df["TEMPORAL"][:]
+        field = df["sea_water_temperature"][:];
+        return lon::Vector{Float64}, lat::Vector{Float64}, depth::Vector{Float64}, 
+            time::Vector{Dates.DateTime}, field::Vector{Float64}
+    end
+end
+
+# ╔═╡ 7bac5550-6079-475d-8432-4913087a9a4b
+@time lon, lat, depth, dates, T =  read_netcdf(filename);
+
+# ╔═╡ 21aa2085-6c2e-41b8-97bc-e6eae39c924e
+md"""
+## Make plot
+"""
+
+# ╔═╡ 64055f4f-d453-4535-8cce-02a23ab99275
+begin
+	fig = plt.figure(figsize = (12, 8))
+	ax = plt.subplot(111, projection=ccrs.PlateCarree())
+	ax.set_extent([-20., 45., 30, 65])
+	scat = ax.scatter(lon, lat, s=3, c=T, cmap=plt.cm.RdYlBu_r)
+	gl = ax.gridlines(crs=ccrs.PlateCarree(), draw_labels=true,
+	                  linewidth=.5, color="gray", alpha=0.5, linestyle="--", zorder=3)
+	ax.add_feature(coast, lw=.5, color=".85", zorder=4)
+	gl.top_labels = false
+	gl.right_labels = false
+	ax.set_title("Argo_$(parameter)_$(regionname)_$(Dates.format(datestart, "yyyymmdd"))-$(Dates.format(dateend, "yyyymmdd")) [$(Int(mindepth))-$(Int(maxdepth)) m]")
+	
+	cbar = plt.colorbar(scat, shrink=.65)
+	cbar.set_label("°C", rotation=0, ha="left")
+	
+	plt.savefig("./test01.jpg")
+	plt.close()
+end
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
+Conda = "8f4d0f93-b110-5947-807f-2305c1781a2d"
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 HTTP = "cd3eb016-35fb-5094-929b-558a96fad6f3"
+HypertextLiteral = "ac1192a8-f4b3-4bfe-ba22-af5b92cd3ab2"
+InteractiveUtils = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
 JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
+JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
+Markdown = "d6f4376e-aef5-505a-96c1-9c027394607a"
 NCDatasets = "85f8d34a-cbdd-5861-8df4-14fed0d494ab"
 OrderedCollections = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
+PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 PyCall = "438e738f-606a-5dbb-bf0a-cddfbfd45ab0"
 PyPlot = "d330b81b-6aea-500a-939a-2ce795aea3ee"
 
 [compat]
+Conda = "~1.10.0"
 HTTP = "~1.10.5"
+HypertextLiteral = "~0.9.5"
 JSON = "~0.21.4"
+JSON3 = "~1.14.0"
 NCDatasets = "~0.14.3"
 OrderedCollections = "~1.6.3"
+PlutoUI = "~0.7.58"
 PyCall = "~1.96.4"
 PyPlot = "~2.11.2"
 """
@@ -48,7 +302,13 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.10.2"
 manifest_format = "2.0"
-project_hash = "30a767d53540d04986308422fe4ba48cf67e4884"
+project_hash = "efd7ea4ae0b3521147ac05d75008343c5d5fd8be"
+
+[[deps.AbstractPlutoDingetjes]]
+deps = ["Pkg"]
+git-tree-sha1 = "0f748c81756f2e5e6854298f11ad8b2dfae6911a"
+uuid = "6e696c72-6542-2067-7265-42206c756150"
+version = "1.3.0"
 
 [[deps.ArgTools]]
 uuid = "0dad84c5-d112-42e6-8d28-ef12dabb789f"
@@ -199,6 +459,24 @@ git-tree-sha1 = "ca0f6bf568b4bfc807e7537f081c81e35ceca114"
 uuid = "e33a78d0-f292-5ffc-b300-72abe9b543c8"
 version = "2.10.0+0"
 
+[[deps.Hyperscript]]
+deps = ["Test"]
+git-tree-sha1 = "179267cfa5e712760cd43dcae385d7ea90cc25a4"
+uuid = "47d2ed2b-36de-50cf-bf87-49c2cf4b8b91"
+version = "0.0.5"
+
+[[deps.HypertextLiteral]]
+deps = ["Tricks"]
+git-tree-sha1 = "7134810b1afce04bbc1045ca1985fbe81ce17653"
+uuid = "ac1192a8-f4b3-4bfe-ba22-af5b92cd3ab2"
+version = "0.9.5"
+
+[[deps.IOCapture]]
+deps = ["Logging", "Random"]
+git-tree-sha1 = "8b72179abc660bfab5e28472e019392b97d0985c"
+uuid = "b5f81e59-6552-4d32-b1f0-c071b021bf89"
+version = "0.2.4"
+
 [[deps.InteractiveUtils]]
 deps = ["Markdown"]
 uuid = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
@@ -214,6 +492,18 @@ deps = ["Dates", "Mmap", "Parsers", "Unicode"]
 git-tree-sha1 = "31e996f0a15c7b280ba9f76636b3ff9e2ae58c9a"
 uuid = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 version = "0.21.4"
+
+[[deps.JSON3]]
+deps = ["Dates", "Mmap", "Parsers", "PrecompileTools", "StructTypes", "UUIDs"]
+git-tree-sha1 = "eb3edce0ed4fa32f75a0a11217433c31d56bd48b"
+uuid = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
+version = "1.14.0"
+
+    [deps.JSON3.extensions]
+    JSON3ArrowExt = ["ArrowTypes"]
+
+    [deps.JSON3.weakdeps]
+    ArrowTypes = "31f734f8-188a-4ce0-8406-c8a06bd891cd"
 
 [[deps.LLVMOpenMP_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
@@ -290,6 +580,11 @@ deps = ["Artifacts", "JLLWrappers", "Libdl"]
 git-tree-sha1 = "6c26c5e8a4203d43b5497be3ec5d4e0c3cde240a"
 uuid = "5ced341a-0733-55b8-9ab6-a4889d929147"
 version = "1.9.4+0"
+
+[[deps.MIMEs]]
+git-tree-sha1 = "65f28ad4b594aebe22157d6fac869786a255b7eb"
+uuid = "6c6e2e6c-3030-632d-7369-2d6c69616d65"
+version = "0.1.4"
 
 [[deps.MPICH_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Hwloc_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "MPIPreferences", "TOML"]
@@ -427,6 +722,12 @@ deps = ["Artifacts", "Dates", "Downloads", "FileWatching", "LibGit2", "Libdl", "
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 version = "1.10.0"
 
+[[deps.PlutoUI]]
+deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "JSON", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
+git-tree-sha1 = "71a22244e352aa8c5f0f2adde4150f62368a3f2e"
+uuid = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
+version = "0.7.58"
+
 [[deps.PrecompileTools]]
 deps = ["Preferences"]
 git-tree-sha1 = "5aa36f7049a63a1528fe8f7c3f2113413ffd4e1f"
@@ -493,6 +794,12 @@ deps = ["LinearAlgebra", "SparseArrays"]
 uuid = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 version = "1.10.0"
 
+[[deps.StructTypes]]
+deps = ["Dates", "UUIDs"]
+git-tree-sha1 = "ca4bccb03acf9faaf4137a9abc1881ed1841aa70"
+uuid = "856f2bd8-1eba-4b0a-8007-ebc267875bd4"
+version = "1.10.0"
+
 [[deps.SuiteSparse_jll]]
 deps = ["Artifacts", "Libdl", "libblastrampoline_jll"]
 uuid = "bea87d4a-7f5b-5778-9afe-8cc45184846c"
@@ -520,6 +827,11 @@ weakdeps = ["Random", "Test"]
 
     [deps.TranscodingStreams.extensions]
     TestExt = ["Test", "Random"]
+
+[[deps.Tricks]]
+git-tree-sha1 = "eae1bb484cd63b36999ee58be2de6c178105112f"
+uuid = "410a4b4d-49e4-4fbc-ab6d-cb71b17b3775"
+version = "0.1.8"
 
 [[deps.URIs]]
 git-tree-sha1 = "67db6cc7b3821e19ebe75791a9dd19c9b1188f2b"
@@ -602,7 +914,28 @@ version = "3.0.2+0"
 """
 
 # ╔═╡ Cell order:
-# ╠═0c8461be-9a83-434d-adeb-2f2e62d4832f
 # ╠═557eda82-f679-11ee-274e-37137b03fb0f
+# ╟─de7029a9-a5a5-4cea-82e1-43f596c2b617
+# ╠═4a823c93-6120-4204-ba4d-3b5558fc8e8d
+# ╟─e7ae81f3-970e-4d3f-936f-3073b1063e5c
+# ╟─9d3aa9d8-ab25-48b3-aede-428c9d960815
+# ╟─f7510e4d-5814-4511-bcc3-27df3db89a30
+# ╟─9b9716d9-d363-4e3c-be27-98ddcf9600e6
+# ╟─5915e937-63ae-4ebb-99ce-01bfa9b40b63
+# ╠═1803fa0b-45a4-443a-80d8-054537137f67
+# ╟─b9c9921b-b41a-480e-b0ac-fca6e652dc22
+# ╠═775ce187-9ce5-4e75-aab8-b2153e7a5c29
+# ╟─37ad43bd-432d-49f7-8d48-27e9831a3111
+# ╟─a2d61983-0042-405f-ada9-1024e86c1644
+# ╟─0020634a-d792-4ace-bd74-ab565dfaa86d
+# ╠═7e741d55-ea1f-449e-939e-036259742653
+# ╟─c35fcaf8-6183-458c-8ff1-f3f2710670ee
+# ╠═b5d4f777-6ac0-4e84-9179-e96e25f8d542
+# ╟─921f570e-6c64-4b3e-a7c9-beb9db7ef4c9
+# ╟─b64bc67d-ab2e-47a3-9f5f-0092f7917970
+# ╠═7bac5550-6079-475d-8432-4913087a9a4b
+# ╟─21aa2085-6c2e-41b8-97bc-e6eae39c924e
+# ╠═05def578-6786-4713-af46-ac58b334f5c7
+# ╠═64055f4f-d453-4535-8cce-02a23ab99275
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
