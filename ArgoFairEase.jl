@@ -60,7 +60,7 @@ end
 """
     read_netcdf(datafile)
 
-Read the netCDF obtained from the API call.
+Read the netCDF containing the observations and obtained with the API
 """
 function read_netcdf(datafile::AbstractString)
     NCDataset(datafile, "r") do df
@@ -71,6 +71,23 @@ function read_netcdf(datafile::AbstractString)
         field = df["sea_water_temperature"][:];
         return lon::Vector{Float64}, lat::Vector{Float64}, depth::Vector{Float64}, 
             time::Vector{Dates.DateTime}, field::Vector{Float64}
+    end
+end
+
+"""
+    get_results(outputfile)
+
+Read the results obtained with DIVAnd
+"""
+function get_results(outputfile::AbstractString, parameter::AbstractString)
+    NCDataset(outputfile, "r") do ds
+        lon = ds["lon"][:]
+        lat = ds["lat"][:]
+        depth = ds["depth"][:]
+        time = ds["time"][:]
+        field = coalesce.(ds[parameter][:,:,:,:], NaN)
+        
+        return lon, lat, depth, time, field
     end
 end
 
