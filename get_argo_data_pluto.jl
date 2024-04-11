@@ -81,8 +81,7 @@ dateref::Date=Dates.Date(1950, 1, 1))
         OrderedDict("for_query_parameter" => Dict("alias"=> "LATITUDE"), "min"=> minlat, "max"=> maxlat)
     ],
     "output" => Dict("format"=> "netcdf")
-    )
-
+	)
     body = JSON3.write(paramdict)
     return body::String
 end
@@ -115,7 +114,7 @@ md"""
 
 # ╔═╡ 1803fa0b-45a4-443a-80d8-054537137f67
 begin
-	datestart = Dates.Date(2020, 1, 1)
+	datestart = Dates.Date(2000, 1, 1)
 	dateend = Dates.Date(2021, 12, 31)
 end
 
@@ -141,6 +140,59 @@ md"""
 [`EMODnet Bathymetry`](https://www.emodnet-bathymetry.eu/) and coastline as basemap.
 """
 
+# ╔═╡ 0020634a-d792-4ace-bd74-ab565dfaa86d
+md"""
+## Query body based on input fields
+"""
+
+# ╔═╡ 7e741d55-ea1f-449e-939e-036259742653
+@time query = prepare_query(parameter, units, datestart, dateend, 
+    mindepth, maxdepth, minlon, maxlon, minlat, maxlat)
+
+# ╔═╡ c35fcaf8-6183-458c-8ff1-f3f2710670ee
+md"""
+### Perform request and write into netCDF file
+"""
+
+# ╔═╡ b5d4f777-6ac0-4e84-9179-e96e25f8d542
+begin 
+	filename = "./data/Argo_$(parameter)_$(regionname)_$(Dates.format(datestart, "yyyymmdd"))-$(Dates.format(dateend, "yyyymmdd"))_$(Int(mindepth))-$(Int(maxdepth))m.json";
+	
+	@time open(filename, "w") do io
+	    HTTP.request("POST", "$(beaconURL)/api/query", 
+	    ["Content-Type" => "application/json"], query,
+	    response_stream=io);
+	end;
+end;
+
+# ╔═╡ 9a0b217d-ed49-4b6c-92f5-fd72437fc49f
+query
+
+# ╔═╡ 921f570e-6c64-4b3e-a7c9-beb9db7ef4c9
+md"""
+### Read netCDF content
+"""
+
+# ╔═╡ b64bc67d-ab2e-47a3-9f5f-0092f7917970
+function read_netcdf(datafile::AbstractString)
+    NCDataset(datafile, "r") do df
+        lon = df["LONGITUDE"][:] 
+        lat = df["LATITUDE"][:] 
+        depth = df["DEPTH"][:]
+        time = df["TEMPORAL"][:]
+        field = df["sea_water_temperature"][:];
+        return lon::Vector{Float64}, lat::Vector{Float64}, depth::Vector{Float64}, 
+            time::Vector{Dates.DateTime}, field::Vector{Float64}
+    end
+end
+
+# ╔═╡ 7bac5550-6079-475d-8432-4913087a9a4b
+begin 
+	@time lon, lat, depth, dates, T =  read_netcdf(filename);
+	coords = [ [lon[i],lat[i]] for i in 1:length(lon) ];
+	unique!(coords);
+end
+
 # ╔═╡ a2d61983-0042-405f-ada9-1024e86c1644
 @htl("""
 	<meta charset="utf-8">
@@ -150,6 +202,7 @@ md"""
 	
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.8.0/dist/leaflet.css" integrity="sha512-hoalWLoI8r4UszCkZ5kL8vayOGVae1oxXe/2A4AO6J9+580uKHDO3JdHb7NzwwzK5xr/Fs0W40kiNHxM9vyTtQ==" crossorigin=""/>
     <script src="https://unpkg.com/leaflet@1.8.0/dist/leaflet.js" integrity="sha512-BB3hKbKWOc9Ez/TAwyWxNXeoV9c1v6FIeYiBieIWkpLjauysF18NzgR1MBNBXf8/KABdlkX68nAhlwcDFLGPCQ==" crossorigin=""></script>
+    
 
 	<style>
 		html, body {
@@ -165,13 +218,38 @@ md"""
 	</style>
 
 <body>
-
 <div id="map" style="width: 600px; height: 400px;"></div>
 <script>
 
 	//var map = L.map('map').setView([0.5*$(minlon)+$(maxlon)), 0.5*($(minlat)+$(maxlat))], 6);
 
 	var map = L.map('map').setView([10., 0.], 6);
+	var myRenderer = L.canvas({ padding: 0.5 });
+
+	var geojsonMarkerOptions = {
+		renderer: myRenderer,
+	    radius: 1.5,
+	    fillColor: "#ff7800",
+	    color: "#000",
+	    weight: 1,
+	    opacity: 1,
+	    fillOpacity: 0.8
+	};
+
+	var geojsonFeature = {
+            "type": "Feature",
+            "geometry": {
+                "type": "MultiPoint",
+	                "coordinates": $(coords)
+	            }
+	        };
+
+
+	L.geoJSON(geojsonFeature, {
+	    pointToLayer: function (feature, latlng) {
+	        return L.circleMarker(latlng, geojsonMarkerOptions);
+	    }
+	}).addTo(map);
 
 	var polygon = L.polygon([
 		[$(minlat), $(minlon)],
@@ -193,53 +271,9 @@ md"""
 
 	map.fitBounds(bounds);
 </script>
+
+</body>
 """)
-
-# ╔═╡ 0020634a-d792-4ace-bd74-ab565dfaa86d
-md"""
-## Query body based on input fields
-"""
-
-# ╔═╡ 7e741d55-ea1f-449e-939e-036259742653
-@time query = prepare_query(parameter, units, datestart, dateend, 
-    mindepth, maxdepth, minlon, maxlon, minlat, maxlat);
-
-# ╔═╡ c35fcaf8-6183-458c-8ff1-f3f2710670ee
-md"""
-### Perform request and write into netCDF file
-"""
-
-# ╔═╡ b5d4f777-6ac0-4e84-9179-e96e25f8d542
-begin 
-	filename = "./data/Argo_$(parameter)_$(regionname)_$(Dates.format(datestart, "yyyymmdd"))-$(Dates.format(dateend, "yyyymmdd"))_$(Int(mindepth))-$(Int(maxdepth))m.nc";
-	
-	@time open(filename, "w") do io
-	    HTTP.request("POST", "$(beaconURL)/api/query", 
-	    ["Content-Type" => "application/json"], query,
-	    response_stream=io);
-	end;
-end;
-
-# ╔═╡ 921f570e-6c64-4b3e-a7c9-beb9db7ef4c9
-md"""
-### Read netCDF content
-"""
-
-# ╔═╡ b64bc67d-ab2e-47a3-9f5f-0092f7917970
-function read_netcdf(datafile::AbstractString)
-    NCDataset(datafile, "r") do df
-        lon = df["LONGITUDE"][:] 
-        lat = df["LATITUDE"][:] 
-        depth = df["DEPTH"][:]
-        time = df["TEMPORAL"][:]
-        field = df["sea_water_temperature"][:];
-        return lon::Vector{Float64}, lat::Vector{Float64}, depth::Vector{Float64}, 
-            time::Vector{Dates.DateTime}, field::Vector{Float64}
-    end
-end
-
-# ╔═╡ 7bac5550-6079-475d-8432-4913087a9a4b
-@time lon, lat, depth, dates, T =  read_netcdf(filename);
 
 # ╔═╡ 21aa2085-6c2e-41b8-97bc-e6eae39c924e
 md"""
@@ -263,7 +297,7 @@ begin
 	cbar.set_label("°C", rotation=0, ha="left")
 	
 	plt.savefig("./test01.jpg")
-	plt.close()
+	plt.close(fig)
 end
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
@@ -926,14 +960,15 @@ version = "3.0.2+0"
 # ╟─b9c9921b-b41a-480e-b0ac-fca6e652dc22
 # ╠═775ce187-9ce5-4e75-aab8-b2153e7a5c29
 # ╟─37ad43bd-432d-49f7-8d48-27e9831a3111
-# ╟─a2d61983-0042-405f-ada9-1024e86c1644
 # ╟─0020634a-d792-4ace-bd74-ab565dfaa86d
-# ╠═7e741d55-ea1f-449e-939e-036259742653
+# ╟─7e741d55-ea1f-449e-939e-036259742653
 # ╟─c35fcaf8-6183-458c-8ff1-f3f2710670ee
 # ╠═b5d4f777-6ac0-4e84-9179-e96e25f8d542
+# ╠═9a0b217d-ed49-4b6c-92f5-fd72437fc49f
 # ╟─921f570e-6c64-4b3e-a7c9-beb9db7ef4c9
 # ╟─b64bc67d-ab2e-47a3-9f5f-0092f7917970
 # ╠═7bac5550-6079-475d-8432-4913087a9a4b
+# ╟─a2d61983-0042-405f-ada9-1024e86c1644
 # ╟─21aa2085-6c2e-41b8-97bc-e6eae39c924e
 # ╠═05def578-6786-4713-af46-ac58b334f5c7
 # ╠═64055f4f-d453-4535-8cce-02a23ab99275
