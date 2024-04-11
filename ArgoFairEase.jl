@@ -87,7 +87,8 @@ function get_results(outputfile::AbstractString, parameter::AbstractString)
         time = ds["time"][:]
         field = coalesce.(ds[parameter][:,:,:,:], NaN)
         
-        return lon, lat, depth, time, field
+        return lon::Vector{Float64}, lat::Vector{Float64}, depth::Vector{Float64}, 				   
+        time::Vector{DateTime}, field::Array{AbstractFloat, 4}
     end
 end
 
