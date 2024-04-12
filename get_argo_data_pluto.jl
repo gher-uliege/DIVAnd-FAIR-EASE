@@ -34,16 +34,6 @@ begin
 	mpl.style.use("./fairease.mplstyle")
 end
 
-# ╔═╡ 05def578-6786-4713-af46-ac58b334f5c7
-begin
-	using Conda
-	Conda.add("cartopy");	
-	ccrs = pyimport("cartopy.crs")
-	cfeature = pyimport("cartopy.feature")
-	coast = cfeature.GSHHSFeature(scale="h")
-	dataproj = ccrs.PlateCarree();
-end;
-
 # ╔═╡ d9954dc8-c243-4a95-ba50-7768db5b6a82
 using DIVAnd
 
@@ -57,6 +47,7 @@ begin
 	datadir = "./data/"
 	outputdir = "./output/"
 	figdir = "./figures/"
+	mkpath.([datadir, outputdir, figdir]);
 end
 
 # ╔═╡ ff528eed-305f-4f2c-bf4b-c79f3ddd0010
@@ -127,9 +118,15 @@ md"""
 ### Variable name
 """
 
+# ╔═╡ e57790e8-35e9-4920-b24b-0b1fe07f42ce
+variableunits = Dict("sea_water_temperature"=> "degree_Celsius", 
+					 "sea_water_salinity"=>"psu", 
+					 "mass_concentration_of_chlorophyll_a_in_sea_water"=>"mg/m3",   
+					 "moles_of_nitrate_per_unit_mass_in_sea_water"=>"micromole/kg")
+
 # ╔═╡ 9d3aa9d8-ab25-48b3-aede-428c9d960815
 @bind parameter Select(["sea_water_temperature",  "sea_water_salinity", 
-        "mass_concentration_of_chlorophyll_a_in_sea_water", "moles_of_nitrate_per_unit_mass_in_sea_water"])
+        "mass_concentration_of_chlorophyll_a_in_sea_water",   	"moles_of_nitrate_per_unit_mass_in_sea_water"])
 
 # ╔═╡ f7510e4d-5814-4511-bcc3-27df3db89a30
 md"""
@@ -137,7 +134,8 @@ md"""
 """
 
 # ╔═╡ 9b9716d9-d363-4e3c-be27-98ddcf9600e6
-@bind units Select(["degree_Celsius", "psu", "mg/m3", "micromole/kg"])
+@bind units Select(["degree_Celsius", "psu", "mg/m3", "micromole/kg"],
+				   default=variableunits[parameter])
 
 # ╔═╡ 5915e937-63ae-4ebb-99ce-01bfa9b40b63
 md"""
@@ -153,15 +151,24 @@ end
 # ╔═╡ b9c9921b-b41a-480e-b0ac-fca6e652dc22
 md"""
 ### Domain and depth of interest
+We create a dictionary with different regions
 """
+
+# ╔═╡ 3de1e314-10a2-4604-9c2d-dda5e95e01b4
+domaininfo = Dict("Black_Sea" => [25.975, 43.7, 39.8, 48.32],
+				  "Baltic_Sea" => [9., 36.5, 53., 65.],
+				  "Canary_Islands" => [-20., -9., 25., 31.5]
+				  )
+
+# ╔═╡ 7d195f6e-5308-40b3-9547-6614e96c006a
+@bind regionname Select(collect(keys(domaininfo)))
 
 # ╔═╡ 775ce187-9ce5-4e75-aab8-b2153e7a5c29
 begin
-	minlon = 25.975
-	maxlon = 43.7
-	minlat = 39.80
-	maxlat = 48.32
-	regionname = "BlackSea"
+	minlon = domaininfo[regionname][1]
+	maxlon = domaininfo[regionname][2]
+	minlat = domaininfo[regionname][3]
+	maxlat = domaininfo[regionname][4]
 	mindepth = 0. #Minimum water depth
 	maxdepth = 50. #Maximum water depth
 end
@@ -173,7 +180,7 @@ md"""
 
 # ╔═╡ 7e741d55-ea1f-449e-939e-036259742653
 @time query = prepare_query(parameter, units, datestart, dateend, 
-    mindepth, maxdepth, minlon, maxlon, minlat, maxlat)
+    mindepth, maxdepth, minlon, maxlon, minlat, maxlat);
 
 # ╔═╡ c35fcaf8-6183-458c-8ff1-f3f2710670ee
 md"""
@@ -182,7 +189,7 @@ md"""
 
 # ╔═╡ b5d4f777-6ac0-4e84-9179-e96e25f8d542
 begin 
-	filename = "./data/Argo_$(parameter)_$(regionname)_$(Dates.format(datestart, "yyyymmdd"))-$(Dates.format(dateend, "yyyymmdd"))_$(Int(mindepth))-$(Int(maxdepth))m.json";
+	filename = "./data/Argo_$(parameter)_$(regionname)_$(Dates.format(datestart, "yyyymmdd"))-$(Dates.format(dateend, "yyyymmdd"))_$(Int(mindepth))-$(Int(maxdepth))m.nc";
 	
 	@time open(filename, "w") do io
 	    HTTP.request("POST", "$(beaconURL)/api/query", 
@@ -190,9 +197,6 @@ begin
 	    response_stream=io);
 	end;
 end;
-
-# ╔═╡ 9a0b217d-ed49-4b6c-92f5-fd72437fc49f
-query
 
 # ╔═╡ 921f570e-6c64-4b3e-a7c9-beb9db7ef4c9
 md"""
@@ -229,11 +233,11 @@ md"""
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	
-	<title>Domain of interest</title>
+	<title>Observations in $(regionname)</title>
 	
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.8.0/dist/leaflet.css" integrity="sha512-hoalWLoI8r4UszCkZ5kL8vayOGVae1oxXe/2A4AO6J9+580uKHDO3JdHb7NzwwzK5xr/Fs0W40kiNHxM9vyTtQ==" crossorigin=""/>
     <script src="https://unpkg.com/leaflet@1.8.0/dist/leaflet.js" integrity="sha512-BB3hKbKWOc9Ez/TAwyWxNXeoV9c1v6FIeYiBieIWkpLjauysF18NzgR1MBNBXf8/KABdlkX68nAhlwcDFLGPCQ==" crossorigin=""></script>
-    
+      <script src="https://unpkg.com/leaflet-providers@latest/leaflet-providers.js"></script>
 
 	<style>
 		html, body {
@@ -241,19 +245,25 @@ md"""
 			margin: 0;
 		}
 		.leaflet-container {
-			height: 400px;
-			width: 600px;
 			max-width: 100%;
 			max-height: 100%;
 		}
 	</style>
 
 <body>
-<div id="map" style="width: 600px; height: 400px;"></div>
+<div id="map" style="width: 100%; height: 400px;"></div>
 <script>
 
 	var map = L.map('map').setView([10., 0.], 6);
 	var myRenderer = L.canvas({ padding: 0.5 });
+
+	var OSM = L.tileLayer.provider('OpenStreetMap');
+	var Carto = L.tileLayer.provider('CartoDB.Positron').addTo(map);
+
+    var baseMaps = {
+      "OpenStreetMap": OSM,
+	  "Carto": Carto
+    };
 
 	var geojsonMarkerOptions = {
 		renderer: myRenderer,
@@ -273,16 +283,16 @@ md"""
 	            }
 	        };
 
-
-	L.geoJSON(geojsonFeature, {
+	var obs = L.geoJSON(geojsonFeature, {
 	    pointToLayer: function (feature, latlng) {
 	        return L.circleMarker(latlng, geojsonMarkerOptions);
 	    }
 	}).addTo(map);
 
-	var imageUrl = './figures/thecoast.png'
-    imageBounds = [[$(minlat), $(minlon)], [$(maxlat), $(maxlon)]];
-    L.imageOverlay(imageUrl, imageBounds, {opacity: 0.5, zIndex: 1}).addTo(map);
+	var imageUrl = "https://github.com/gher-uliege/DIVAnd-FAIR-EASE/blob/main/figures/thecoast.png?raw=true"
+    //var imageUrl = "figures/thecoast.png"
+	var imageBounds = [[$(minlat), $(minlon)], [$(maxlat), $(maxlon)]];
+    //var field = L.imageOverlay(imageUrl, imageBounds, {opacity: 0.5}).addTo(map);
 
 	var bathy = L.tileLayer.wms("https://ows.emodnet-bathymetry.eu/wms", {
 	    layers: ['emodnet:mean_atlas_land', 'coastlines'],
@@ -291,9 +301,18 @@ md"""
 	    attribution: "EMODnet Bathymetry"
 	}).addTo(map);
 
-var southWest = new L.LatLng($(minlat), $(minlon)),
+	var southWest = new L.LatLng($(minlat), $(minlon)),
     	northEast = new L.LatLng($(maxlat), $(maxlon)),
-    	bounds = new L.LatLngBounds(southWest, northEast);
+    	bounds = new L.LatLngBounds(southWest, northEast)
+
+	
+	var overlayers = {
+    	"Observation locations" : obs,
+		"EMODnet bathymetry": bathy,
+    };
+
+	L.control.layers(baseMaps, overlayers, {collapsed:false}).addTo(map);
+	
 
 	map.fitBounds(bounds);
 </script>
@@ -301,33 +320,20 @@ var southWest = new L.LatLng($(minlat), $(minlon)),
 </body>
 """)
 
-# ╔═╡ ee5bb199-be51-4080-9104-831f08da5b1e
-"[[$(minlat), $(minlon)], [$(maxlat), $(maxlon)]]"
-
 # ╔═╡ 21aa2085-6c2e-41b8-97bc-e6eae39c924e
 md"""
 ## Make plot
 """
 
-# ╔═╡ 64055f4f-d453-4535-8cce-02a23ab99275
+# ╔═╡ 05def578-6786-4713-af46-ac58b334f5c7
 begin
-	fig = plt.figure(figsize = (12, 8))
-	ax = plt.subplot(111, projection=ccrs.PlateCarree())
-	ax.set_extent([-20., 45., 30, 65])
-	scat = ax.scatter(obslon, obslat, s=3, c=obsval, cmap=plt.cm.RdYlBu_r)
-	gl = ax.gridlines(crs=ccrs.PlateCarree(), draw_labels=true,
-	                  linewidth=.5, color="gray", alpha=0.5, linestyle="--", zorder=3)
-	ax.add_feature(coast, lw=.5, color=".85", zorder=4)
-	gl.top_labels = false
-	gl.right_labels = false
-	ax.set_title("Argo_$(parameter)_$(regionname)_$(Dates.format(datestart, "yyyymmdd"))-$(Dates.format(dateend, "yyyymmdd")) [$(Int(mindepth))-$(Int(maxdepth)) m]")
-	
-	cbar = plt.colorbar(scat, shrink=.65)
-	cbar.set_label("°C", rotation=0, ha="left")
-	
-	plt.savefig("./test01.jpg")
-	plt.close(fig)
-end
+	# using Conda
+	# Conda.add("cartopy");	
+	ccrs = pyimport("cartopy.crs")
+	cfeature = pyimport("cartopy.feature")
+	coast = cfeature.GSHHSFeature(scale="h")
+	dataproj = ccrs.PlateCarree();
+end;
 
 # ╔═╡ 888ba762-4101-4139-88e9-8978d734f1cd
 md"""
@@ -364,7 +370,34 @@ begin
 	yearlist = [Dates.year(datestart):Dates.year(dateend)];
 	monthlist = [[1,2,3],[4,5,6],[7,8,9],[10,11,12]];
 	TS = DIVAnd.TimeSelectorYearListMonthList(yearlist,monthlist);
-	@show TS;
+end
+
+# ╔═╡ 64055f4f-d453-4535-8cce-02a23ab99275
+if usecartopy
+
+	figtitleobs = """
+	Observations: Argo $(regionname): $(parameter) at $(depthr[1]) m
+	Period: $(Dates.monthname(monthlist[1][1])) - $(Dates.monthname(monthlist[1][end])) $(yearlist[1][1]) - $(yearlist[1][end])"""
+	
+	fig = plt.figure(figsize = (12, 8))
+	ax = plt.subplot(111, projection=ccrs.PlateCarree())
+	ax.set_extent([minlon, maxlon, minlat, maxlat])
+	scat = ax.scatter(obslon, obslat, s=3, c=obsval, cmap=plt.cm.RdYlBu_r, vmin=34.)
+	gl = ax.gridlines(crs=ccrs.PlateCarree(), draw_labels=true,
+	                  linewidth=.5, color="gray", alpha=0.5, linestyle="--", zorder=3)
+	ax.add_feature(coast, lw=.5, color=".85", zorder=4)
+	gl.top_labels = false
+	gl.right_labels = false
+	ax.set_title(figtitleobs)
+	
+	cbar = plt.colorbar(scat, shrink=.65)
+	cbar.set_label("°C", rotation=0, ha="left")
+	
+	plt.savefig(joinpath(figdir, "observations.jpg"))
+	plt.close(fig)
+
+	LocalResource(joinpath(figdir, "observations.jpg"))
+
 end
 
 # ╔═╡ 38518967-9544-4ab3-b881-3962de5e368c
@@ -390,16 +423,13 @@ md"""
 # ╔═╡ c32ddf96-26aa-43dc-93a5-7f2ab807ff19
 outputfile = joinpath(outputdir, "Argo_DIVAnd_$(parameter)_$(regionname)_$(Dates.format(datestart, "yyyymmdd"))-$(Dates.format(dateend, "yyyymmdd"))_$(Int(mindepth))-$(Int(maxdepth))m.nc")
 
-# ╔═╡ 15ae78e0-4ef3-4111-aa2c-d1cdf733734f
-
-
 # ╔═╡ 635c8b69-3e30-4ddd-b6df-1c90e8a516b9
 md"""
 ### Select the bathymetry file
 """
 
 # ╔═╡ 79a50ac3-a5c1-499e-801d-eebc7501d2bb
-@bind bathname FilePicker()
+bathname = joinpath(datadir, "gebco_30sec_16.nc")
 
 # ╔═╡ b8b9a325-b647-4e19-bb95-a768e1c457c3
 md"""
@@ -441,11 +471,16 @@ md"""
     (obslon,obslat,obsdepth,obsdates), obsval,
     len, epsilon2,
     outputfile,parameter,
-    bathname="./data/gebco_30sec_16.nc",
+    bathname=joinpath(datadir, "gebco_30sec_16.nc"),
     fitcorrlen = false,
     niter_e = 2,
     surfextend = true
     );
+
+# ╔═╡ d708b881-8678-40cc-8a07-0513a41159c6
+md"""
+### Read the results
+"""
 
 # ╔═╡ 226d77a9-c50d-4d4c-a906-86631dd60b50
 function get_results(outputfile::AbstractString, parameter::AbstractString)
@@ -463,8 +498,13 @@ end
 # ╔═╡ 8c4e4476-b1a1-4291-8173-149824928339
 lon, lat, depth, time, field = get_results(outputfile, parameter);
 
+# ╔═╡ d8ea13f6-34b2-4f9e-9d33-f02cffdd9f56
+md"""
+### Create the plot
+"""
+
 # ╔═╡ 3fe16edc-93b1-48a0-8d3c-5e56e2c13b2b
-begin
+if usecartopy
 	figtitle = """
 	DIVAnd analysis: Argo $(regionname): $(parameter) at $(depthr[1]) m
 	Period: $(Dates.monthname(monthlist[1][1])) - $(Dates.monthname(monthlist[1][end])) $(yearlist[1][1]) - $(yearlist[1][end])"""
@@ -481,18 +521,16 @@ begin
 	ax1.set_title(figtitle)
 	
 	cbar1 = plt.colorbar(pcm, shrink=.65)
-	cbar1.set_label("°C", rotation=0, ha="left")
+	cbar1.set_label(units, rotation=0, ha="left")
 	plt.savefig(joinpath(figdir, "Argo_interpolation.jpg"))
 	plt.close()
-end
 
-# ╔═╡ 3b3efde8-65ad-49eb-ae49-d24bce5fb7e3
-LocalResource("figures/Argo_interpolation.jpg")
+	LocalResource(joinpath(figdir, "Argo_interpolation.jpg"))
+end
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
-Conda = "8f4d0f93-b110-5947-807f-2305c1781a2d"
 DIVAnd = "efc8151c-67de-5a8f-9a35-d8f54746ae9d"
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 HTTP = "cd3eb016-35fb-5094-929b-558a96fad6f3"
@@ -509,7 +547,6 @@ PyCall = "438e738f-606a-5dbb-bf0a-cddfbfd45ab0"
 PyPlot = "d330b81b-6aea-500a-939a-2ce795aea3ee"
 
 [compat]
-Conda = "~1.10.0"
 DIVAnd = "~2.7.11"
 HTTP = "~1.10.5"
 HypertextLiteral = "~0.9.5"
@@ -528,7 +565,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.10.2"
 manifest_format = "2.0"
-project_hash = "752f3cba5551d0cac3c12afbc608dc870e2435f3"
+project_hash = "464488f56221768f9ae32c1b7590a7cb2f908cbc"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "016833eb52ba2d6bea9fcb50ca295980e728ee24"
@@ -910,10 +947,10 @@ uuid = "0951126a-58fd-58f1-b5b3-b08c7c4a876d"
 version = "3.8.4+0"
 
 [[deps.HDF5_jll]]
-deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "LLVMOpenMP_jll", "LazyArtifacts", "LibCURL_jll", "Libdl", "MPICH_jll", "MPIPreferences", "MPItrampoline_jll", "MicrosoftMPI_jll", "OpenMPI_jll", "OpenSSL_jll", "TOML", "Zlib_jll", "libaec_jll"]
-git-tree-sha1 = "38c8874692d48d5440d5752d6c74b0c6b0b60739"
+deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "LazyArtifacts", "LibCURL_jll", "Libdl", "MPICH_jll", "MPIPreferences", "MPItrampoline_jll", "MicrosoftMPI_jll", "OpenMPI_jll", "OpenSSL_jll", "TOML", "Zlib_jll", "libaec_jll"]
+git-tree-sha1 = "82a471768b513dc39e471540fdadc84ff80ff997"
 uuid = "0234f1f7-429e-5d53-9886-15a909be8d59"
-version = "1.14.2+1"
+version = "1.14.3+3"
 
 [[deps.HTTP]]
 deps = ["Base64", "CodecZlib", "ConcurrentUtilities", "Dates", "ExceptionUnwrapping", "Logging", "LoggingExtras", "MbedTLS", "NetworkOptions", "OpenSSL", "Random", "SimpleBufferStream", "Sockets", "URIs", "UUIDs"]
@@ -1039,12 +1076,6 @@ deps = ["LinearAlgebra", "Printf", "SparseArrays"]
 git-tree-sha1 = "8a6837ec02fe5fb3def1abc907bb802ef11a0729"
 uuid = "ba0b0d4f-ebba-5204-a429-3ac8c609bfb7"
 version = "0.9.5"
-
-[[deps.LLVMOpenMP_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "d986ce2d884d49126836ea94ed5bfb0f12679713"
-uuid = "1d63c593-3942-5779-bab2-d838dc0a180e"
-version = "15.0.7+0"
 
 [[deps.LRUCache]]
 git-tree-sha1 = "b3cc6698599b10e652832c2f23db3cab99d51b59"
@@ -1244,9 +1275,9 @@ uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 
 [[deps.MatrixFactorizations]]
 deps = ["ArrayLayouts", "LinearAlgebra", "Printf", "Random"]
-git-tree-sha1 = "58c42d3bc923cbad07c61770d513c33e08a23c5e"
+git-tree-sha1 = "eecef9daff3b2b58cc666ee0c85d1b9889b6e98e"
 uuid = "a3b82374-2e81-5b9e-98ce-41277c0e4c87"
-version = "2.1.3"
+version = "2.1.2"
 
 [[deps.MbedTLS]]
 deps = ["Dates", "MbedTLS_jll", "MozillaCACerts_jll", "NetworkOptions", "Random", "Sockets"]
@@ -1326,10 +1357,10 @@ uuid = "05823500-19ac-5b8b-9628-191a04bc5112"
 version = "0.8.1+2"
 
 [[deps.OpenMPI_jll]]
-deps = ["Artifacts", "CompilerSupportLibraries_jll", "Hwloc_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "MPIPreferences", "PMIx_jll", "TOML", "Zlib_jll", "libevent_jll", "prrte_jll"]
-git-tree-sha1 = "f46caf663e069027a06942d00dced37f1eb3d8ad"
+deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "MPIPreferences", "TOML"]
+git-tree-sha1 = "e25c1778a98e34219a00455d6e4384e017ea9762"
 uuid = "fe0851c0-eecd-5654-98d4-656369965a5c"
-version = "5.0.2+0"
+version = "4.1.6+0"
 
 [[deps.OpenSSL]]
 deps = ["BitFlags", "Dates", "MozillaCACerts_jll", "OpenSSL_jll", "Sockets"]
@@ -1359,12 +1390,6 @@ deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
 git-tree-sha1 = "2cd396108e178f3ae8dedbd8e938a18726ab2fbf"
 uuid = "c2071276-7c44-58a7-b746-946036e04d0a"
 version = "0.24.1+0"
-
-[[deps.PMIx_jll]]
-deps = ["Artifacts", "Hwloc_jll", "JLLWrappers", "Libdl", "Zlib_jll", "libevent_jll"]
-git-tree-sha1 = "360f48126b5f2c2f0c833be960097f7c62705976"
-uuid = "32165bc3-0280-59bc-8c0b-c33b6203efab"
-version = "4.2.9+0"
 
 [[deps.Parsers]]
 deps = ["Dates", "PrecompileTools", "UUIDs"]
@@ -1778,12 +1803,6 @@ deps = ["Artifacts", "Libdl"]
 uuid = "8e850b90-86db-534c-a0d3-1478176c7d93"
 version = "5.8.0+1"
 
-[[deps.libevent_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "OpenSSL_jll"]
-git-tree-sha1 = "f04ec6d9a186115fb38f858f05c0c4e1b7fc9dcb"
-uuid = "1080aeaf-3a6a-583e-a51c-c537b09f60ec"
-version = "2.1.13+1"
-
 [[deps.libzip_jll]]
 deps = ["Artifacts", "Bzip2_jll", "GnuTLS_jll", "JLLWrappers", "Libdl", "XZ_jll", "Zlib_jll", "Zstd_jll"]
 git-tree-sha1 = "3282b7d16ae7ac3e57ec2f3fa8fafb564d8f9f7f"
@@ -1799,12 +1818,6 @@ version = "1.52.0+1"
 deps = ["Artifacts", "Libdl"]
 uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
 version = "17.4.0+2"
-
-[[deps.prrte_jll]]
-deps = ["Artifacts", "Hwloc_jll", "JLLWrappers", "Libdl", "PMIx_jll", "libevent_jll"]
-git-tree-sha1 = "5adb2d7a18a30280feb66cad6f1a1dfdca2dc7b0"
-uuid = "eb928a42-fffd-568d-ab9c-3f5d54fc65b9"
-version = "3.0.2+0"
 """
 
 # ╔═╡ Cell order:
@@ -1813,28 +1826,29 @@ version = "3.0.2+0"
 # ╠═be148eac-bbba-4929-a5ca-a7735c9b77a9
 # ╟─ff528eed-305f-4f2c-bf4b-c79f3ddd0010
 # ╟─31979a73-1b7f-4e84-9a18-ce8fd808d655
-# ╟─2d812c57-40f6-499b-972f-69be172d1365
+# ╠═2d812c57-40f6-499b-972f-69be172d1365
 # ╟─de7029a9-a5a5-4cea-82e1-43f596c2b617
 # ╠═4a823c93-6120-4204-ba4d-3b5558fc8e8d
 # ╟─e7ae81f3-970e-4d3f-936f-3073b1063e5c
+# ╟─e57790e8-35e9-4920-b24b-0b1fe07f42ce
 # ╟─9d3aa9d8-ab25-48b3-aede-428c9d960815
 # ╟─f7510e4d-5814-4511-bcc3-27df3db89a30
-# ╟─9b9716d9-d363-4e3c-be27-98ddcf9600e6
+# ╠═9b9716d9-d363-4e3c-be27-98ddcf9600e6
 # ╟─5915e937-63ae-4ebb-99ce-01bfa9b40b63
 # ╠═1803fa0b-45a4-443a-80d8-054537137f67
 # ╟─b9c9921b-b41a-480e-b0ac-fca6e652dc22
+# ╠═7d195f6e-5308-40b3-9547-6614e96c006a
+# ╠═3de1e314-10a2-4604-9c2d-dda5e95e01b4
 # ╠═775ce187-9ce5-4e75-aab8-b2153e7a5c29
 # ╟─0020634a-d792-4ace-bd74-ab565dfaa86d
-# ╟─7e741d55-ea1f-449e-939e-036259742653
+# ╠═7e741d55-ea1f-449e-939e-036259742653
 # ╟─c35fcaf8-6183-458c-8ff1-f3f2710670ee
 # ╠═b5d4f777-6ac0-4e84-9179-e96e25f8d542
-# ╠═9a0b217d-ed49-4b6c-92f5-fd72437fc49f
 # ╟─921f570e-6c64-4b3e-a7c9-beb9db7ef4c9
 # ╟─b64bc67d-ab2e-47a3-9f5f-0092f7917970
 # ╠═7bac5550-6079-475d-8432-4913087a9a4b
 # ╟─37ad43bd-432d-49f7-8d48-27e9831a3111
-# ╠═a2d61983-0042-405f-ada9-1024e86c1644
-# ╠═ee5bb199-be51-4080-9104-831f08da5b1e
+# ╟─a2d61983-0042-405f-ada9-1024e86c1644
 # ╟─21aa2085-6c2e-41b8-97bc-e6eae39c924e
 # ╠═05def578-6786-4713-af46-ac58b334f5c7
 # ╠═64055f4f-d453-4535-8cce-02a23ab99275
@@ -1848,16 +1862,16 @@ version = "3.0.2+0"
 # ╠═d2c1848d-87ec-42da-9525-315c787ce5d8
 # ╟─4696c1e6-8f20-4bf3-8bb9-4a22eee6cbd7
 # ╠═c32ddf96-26aa-43dc-93a5-7f2ab807ff19
-# ╠═15ae78e0-4ef3-4111-aa2c-d1cdf733734f
 # ╟─635c8b69-3e30-4ddd-b6df-1c90e8a516b9
-# ╟─79a50ac3-a5c1-499e-801d-eebc7501d2bb
+# ╠═79a50ac3-a5c1-499e-801d-eebc7501d2bb
 # ╟─b8b9a325-b647-4e19-bb95-a768e1c457c3
 # ╠═4cb3bb80-2b61-49df-9be5-71d92b56c367
 # ╟─3c65c949-2b21-4f70-9bd3-04fb783fd9d2
 # ╠═f84ddbf7-934b-47d9-9bf3-39d3d1bd076c
+# ╟─d708b881-8678-40cc-8a07-0513a41159c6
 # ╟─226d77a9-c50d-4d4c-a906-86631dd60b50
 # ╠═8c4e4476-b1a1-4291-8173-149824928339
+# ╟─d8ea13f6-34b2-4f9e-9d33-f02cffdd9f56
 # ╠═3fe16edc-93b1-48a0-8d3c-5e56e2c13b2b
-# ╠═3b3efde8-65ad-49eb-ae49-d24bce5fb7e3
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
