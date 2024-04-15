@@ -37,9 +37,32 @@ end
 # ╔═╡ d9954dc8-c243-4a95-ba50-7768db5b6a82
 using DIVAnd
 
+# ╔═╡ c2f31032-1a7c-4fed-9713-0dd33b02ba37
+md"""
+# Interpolation of Argo profilers data
+In this notebook we download Argo data using the Beacon API and then create gridded fields using the [`DIVAnd`] software tool. 
+
+In Pluto notebooks, all the cells are run directly, then if you modify one cell, all the cells depending on the modified one will be re-run.
+
+## Package installation
+1. The packages will be automatically downloaded if needed.
+2. They will be installed in the notebook (✓ symbol).
+3. Their version and dependencies will be written in the notebook file (not visible in the interface).
+"""
+
+# ╔═╡ 81791a25-bf35-44ef-b42d-c852b640163c
+md"""
+### Set API url 
+The URL is set up as an envionment variable, though other options exist.
+"""
+
+# ╔═╡ 4a823c93-6120-4204-ba4d-3b5558fc8e8d
+beaconURL = ENV["beaconURL"];
+
 # ╔═╡ e2c7e580-9202-4b4c-a41d-f00aff0f282f
 md"""
-## Files and directories
+## 📁 Files and directories
+We create separate directories for the data, the results and the plots.
 """
 
 # ╔═╡ be148eac-bbba-4929-a5ca-a7735c9b77a9
@@ -53,6 +76,7 @@ end
 # ╔═╡ ff528eed-305f-4f2c-bf4b-c79f3ddd0010
 md"""
 ## Options for the plots
+Plots can be produced using [`Leaflet`](https://leafletjs.com/) (interactive), [`Cartopy`](https://scitools.org.uk/cartopy/docs/latest/) and/or [`Basemap`](https://basemaptutorial.readthedocs.io/en/latest/).
 """
 
 # ╔═╡ 31979a73-1b7f-4e84-9a18-ce8fd808d655
@@ -65,6 +89,14 @@ begin
 	usebasemap = "Basemap" in plotoptions;
 	@info("Plots with $(plotoptions)");
 end
+
+# ╔═╡ b20b0a42-2f04-4abc-8b37-278d62a42e32
+if usebasemap
+	using Conda
+	Conda.add("basemap");	
+	basemap = pyimport("mpl_toolkits.basemap")
+	Basemap = basemap.Basemap
+end;
 
 # ╔═╡ de7029a9-a5a5-4cea-82e1-43f596c2b617
 function prepare_query(parameter::String, unit::String, datestart::Date, dateend::Date, mindepth::Float64, maxdepth::Float64, minlon::Float64, maxlon::Float64, minlat::Float64, maxlat::Float64; 
@@ -109,9 +141,6 @@ dateref::Date=Dates.Date(1950, 1, 1))
     return body::String
 end
 
-# ╔═╡ 4a823c93-6120-4204-ba4d-3b5558fc8e8d
-beaconURL = ENV["beaconURL"];
-
 # ╔═╡ e7ae81f3-970e-4d3f-936f-3073b1063e5c
 md"""
 ## Select parameters
@@ -130,7 +159,8 @@ variableunits = Dict("sea_water_temperature"=> "degree_Celsius",
 
 # ╔═╡ f7510e4d-5814-4511-bcc3-27df3db89a30
 md"""
-### Units
+### 📏 Units
+The units should be updated everytime you change the variable name.
 """
 
 # ╔═╡ 9b9716d9-d363-4e3c-be27-98ddcf9600e6
@@ -322,11 +352,12 @@ md"""
 
 # ╔═╡ 21aa2085-6c2e-41b8-97bc-e6eae39c924e
 md"""
-## Make plot
+## 🎨 Make plot
+### Create figure title
 """
 
 # ╔═╡ 05def578-6786-4713-af46-ac58b334f5c7
-begin
+if usecartopy
 	# using Conda
 	# Conda.add("cartopy");	
 	ccrs = pyimport("cartopy.crs")
@@ -372,29 +403,58 @@ begin
 	TS = DIVAnd.TimeSelectorYearListMonthList(yearlist,monthlist);
 end
 
+# ╔═╡ 23eca676-7c99-458a-8999-f799ba5b0222
+begin 
+	figtitleobs = """
+		Observations: Argo $(regionname): $(parameter) at $(depthr[1]) m
+		Period: $(Dates.monthname(monthlist[1][1])) - $(Dates.monthname(monthlist[1][end])) $(yearlist[1][1]) - $(yearlist[1][end])"""
+end
+
 # ╔═╡ 64055f4f-d453-4535-8cce-02a23ab99275
 if usecartopy
 
-	figtitleobs = """
-	Observations: Argo $(regionname): $(parameter) at $(depthr[1]) m
-	Period: $(Dates.monthname(monthlist[1][1])) - $(Dates.monthname(monthlist[1][end])) $(yearlist[1][1]) - $(yearlist[1][end])"""
-	
-	fig = plt.figure(figsize = (12, 8))
-	ax = plt.subplot(111, projection=ccrs.PlateCarree())
-	ax.set_extent([minlon, maxlon, minlat, maxlat])
-	scat = ax.scatter(obslon, obslat, s=3, c=obsval, cmap=plt.cm.RdYlBu_r, vmin=34.)
-	gl = ax.gridlines(crs=ccrs.PlateCarree(), draw_labels=true,
+	fig1 = plt.figure()
+	ax1 = plt.subplot(111, projection=ccrs.PlateCarree())
+	ax1.set_extent([minlon, maxlon, minlat, maxlat])
+	scat = ax1.scatter(obslon, obslat, s=3, c=obsval, cmap=plt.cm.RdYlBu_r)
+	gl = ax1.gridlines(crs=ccrs.PlateCarree(), draw_labels=true,
 	                  linewidth=.5, color="gray", alpha=0.5, linestyle="--", zorder=3)
-	ax.add_feature(coast, lw=.5, color=".85", zorder=4)
+	ax1.add_feature(coast, lw=.5, color=".85", zorder=4)
 	gl.top_labels = false
 	gl.right_labels = false
-	ax.set_title(figtitleobs)
+	ax1.set_title(figtitleobs)
 	
-	cbar = plt.colorbar(scat, shrink=.65)
-	cbar.set_label("°C", rotation=0, ha="left")
+	cbar1 = plt.colorbar(scat, shrink=.65)
+	cbar1.set_label(units, rotation=0, ha="left")
 	
 	plt.savefig(joinpath(figdir, "observations.jpg"))
-	plt.close(fig)
+	plt.close(fig1)
+
+	LocalResource(joinpath(figdir, "observations.jpg"))
+
+end
+
+# ╔═╡ 7b97d3ad-97aa-46bf-8141-15ce7c077863
+if usebasemap
+
+	fig2 = plt.figure()
+	ax2 = plt.subplot(111)
+
+	m = Basemap(projection = "cyl", llcrnrlon = minlon, llcrnrlat = minlat, 
+    urcrnrlon = maxlon, urcrnrlat = maxlat, resolution = "i") 
+
+	sc = m.scatter(obslon, obslat, latlon=true, s=3, c=obsval, cmap=plt.cm.RdYlBu_r)
+	m.drawlsmask(land_color = ".85", ocean_color = "#CCFFFF"); 
+	m.drawcoastlines(linewidth=.5)
+	m.drawparallels(collect(0.:5.:90.), color="gray", labels=[1,0,0,0])
+	m.drawmeridians(collect(-10.:10.:80.), color="gray", labels=[0,0,0,1])
+	ax2.set_title(figtitleobs)
+	
+	cbar2 = plt.colorbar(scat, shrink=.65)
+	cbar2.set_label(units, rotation=0, ha="left")
+	
+	plt.savefig(joinpath(figdir, "observations.jpg"))
+	plt.close(fig2)
 
 	LocalResource(joinpath(figdir, "observations.jpg"))
 
@@ -463,7 +523,7 @@ end
 
 # ╔═╡ 3c65c949-2b21-4f70-9bd3-04fb783fd9d2
 md"""
-### Run analysis
+### ⚙️ Run analysis
 """
 
 # ╔═╡ f84ddbf7-934b-47d9-9bf3-39d3d1bd076c
@@ -500,28 +560,53 @@ lon, lat, depth, time, field = get_results(outputfile, parameter);
 
 # ╔═╡ d8ea13f6-34b2-4f9e-9d33-f02cffdd9f56
 md"""
-### Create the plot
+### 🎨 Create the plot
 """
+
+# ╔═╡ 05ae76b2-f489-4264-bd42-9314a8aad0a9
+figtitle = """
+DIVAnd analysis: Argo $(regionname): $(parameter) at $(depthr[1]) m
+Period: $(Dates.monthname(monthlist[1][1])) - $(Dates.monthname(monthlist[1][end])) $(yearlist[1][1]) - $(yearlist[1][end])"""
 
 # ╔═╡ 3fe16edc-93b1-48a0-8d3c-5e56e2c13b2b
 if usecartopy
-	figtitle = """
-	DIVAnd analysis: Argo $(regionname): $(parameter) at $(depthr[1]) m
-	Period: $(Dates.monthname(monthlist[1][1])) - $(Dates.monthname(monthlist[1][end])) $(yearlist[1][1]) - $(yearlist[1][end])"""
-	
-	fig1 = plt.figure(figsize = (12, 8))
-	ax1 = plt.subplot(111, projection=ccrs.PlateCarree())
-	ax1.set_extent([minlon, maxlon, minlat, maxlat])
-	pcm = ax1.pcolormesh(lon, lat, field[:,:,1,1]', cmap=plt.cm.RdYlBu_r)
-	gl1 = ax1.gridlines(crs=ccrs.PlateCarree(), draw_labels=true,
+
+	fig3 = plt.figure(figsize = (12, 8))
+	ax3 = plt.subplot(111, projection=ccrs.PlateCarree())
+	ax3.set_extent([minlon, maxlon, minlat, maxlat])
+	pcm3 = ax3.pcolormesh(lon, lat, field[:,:,1,1]', cmap=plt.cm.RdYlBu_r)
+	gl3 = ax3.gridlines(crs=ccrs.PlateCarree(), draw_labels=true,
 	                  linewidth=.5, color="gray", alpha=0.5, linestyle="--", zorder=3)
-	ax1.add_feature(coast, lw=.5, color=".85", zorder=4)
-	gl1.top_labels = false
-	gl1.right_labels = false
-	ax1.set_title(figtitle)
+	ax3.add_feature(coast, lw=.5, color=".85", zorder=4)
+	gl3.top_labels = false
+	gl3.right_labels = false
+	ax3.set_title(figtitle)
 	
-	cbar1 = plt.colorbar(pcm, shrink=.65)
-	cbar1.set_label(units, rotation=0, ha="left")
+	cbar3 = plt.colorbar(pcm3, shrink=.65)
+	cbar3.set_label(units, rotation=0, ha="left")
+	plt.savefig(joinpath(figdir, "Argo_interpolation.jpg"))
+	plt.close()
+
+	LocalResource(joinpath(figdir, "Argo_interpolation.jpg"))
+end
+
+# ╔═╡ f72bd266-4559-4895-b753-ced821ffc44e
+if usebasemap
+
+	fig4 = plt.figure(figsize = (12, 8))
+	ax4 = plt.subplot(111)
+	m4 = Basemap(projection = "cyl", llcrnrlon = minlon, llcrnrlat = minlat, 
+    urcrnrlon = maxlon, urcrnrlat = maxlat, resolution = "i") 
+	
+	pcm4 = m4.pcolormesh(lon, lat, field[:,:,1,1]', cmap=plt.cm.RdYlBu_r, latlon=true)
+
+	m4.drawlsmask(land_color = ".85", ocean_color = "#CCFFFF"); 
+	m4.drawcoastlines(linewidth=.5)
+	m4.drawparallels(collect(0.:5.:90.), color="gray", labels=[1,0,0,0])
+	m4.drawmeridians(collect(-10.:10.:80.), color="gray", labels=[0,0,0,1])
+	
+	cbar4 = plt.colorbar(pcm4, shrink=.65)
+	cbar4.set_label(units, rotation=0, ha="left")
 	plt.savefig(joinpath(figdir, "Argo_interpolation.jpg"))
 	plt.close()
 
@@ -531,6 +616,7 @@ end
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
+Conda = "8f4d0f93-b110-5947-807f-2305c1781a2d"
 DIVAnd = "efc8151c-67de-5a8f-9a35-d8f54746ae9d"
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 HTTP = "cd3eb016-35fb-5094-929b-558a96fad6f3"
@@ -547,6 +633,7 @@ PyCall = "438e738f-606a-5dbb-bf0a-cddfbfd45ab0"
 PyPlot = "d330b81b-6aea-500a-939a-2ce795aea3ee"
 
 [compat]
+Conda = "~1.10.0"
 DIVAnd = "~2.7.11"
 HTTP = "~1.10.5"
 HypertextLiteral = "~0.9.5"
@@ -565,7 +652,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.10.2"
 manifest_format = "2.0"
-project_hash = "464488f56221768f9ae32c1b7590a7cb2f908cbc"
+project_hash = "752f3cba5551d0cac3c12afbc608dc870e2435f3"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "016833eb52ba2d6bea9fcb50ca295980e728ee24"
@@ -1821,14 +1908,16 @@ version = "17.4.0+2"
 """
 
 # ╔═╡ Cell order:
+# ╟─c2f31032-1a7c-4fed-9713-0dd33b02ba37
 # ╠═557eda82-f679-11ee-274e-37137b03fb0f
+# ╟─81791a25-bf35-44ef-b42d-c852b640163c
+# ╠═4a823c93-6120-4204-ba4d-3b5558fc8e8d
 # ╟─e2c7e580-9202-4b4c-a41d-f00aff0f282f
 # ╠═be148eac-bbba-4929-a5ca-a7735c9b77a9
 # ╟─ff528eed-305f-4f2c-bf4b-c79f3ddd0010
 # ╟─31979a73-1b7f-4e84-9a18-ce8fd808d655
-# ╠═2d812c57-40f6-499b-972f-69be172d1365
+# ╟─2d812c57-40f6-499b-972f-69be172d1365
 # ╟─de7029a9-a5a5-4cea-82e1-43f596c2b617
-# ╠═4a823c93-6120-4204-ba4d-3b5558fc8e8d
 # ╟─e7ae81f3-970e-4d3f-936f-3073b1063e5c
 # ╟─e57790e8-35e9-4920-b24b-0b1fe07f42ce
 # ╟─9d3aa9d8-ab25-48b3-aede-428c9d960815
@@ -1850,8 +1939,11 @@ version = "17.4.0+2"
 # ╟─37ad43bd-432d-49f7-8d48-27e9831a3111
 # ╟─a2d61983-0042-405f-ada9-1024e86c1644
 # ╟─21aa2085-6c2e-41b8-97bc-e6eae39c924e
+# ╠═23eca676-7c99-458a-8999-f799ba5b0222
+# ╠═b20b0a42-2f04-4abc-8b37-278d62a42e32
 # ╠═05def578-6786-4713-af46-ac58b334f5c7
 # ╠═64055f4f-d453-4535-8cce-02a23ab99275
+# ╠═7b97d3ad-97aa-46bf-8141-15ce7c077863
 # ╟─888ba762-4101-4139-88e9-8978d734f1cd
 # ╠═d9954dc8-c243-4a95-ba50-7768db5b6a82
 # ╟─ee28b85c-dd78-4edc-bacc-8cf0e8f1d6d5
@@ -1872,6 +1964,8 @@ version = "17.4.0+2"
 # ╟─226d77a9-c50d-4d4c-a906-86631dd60b50
 # ╠═8c4e4476-b1a1-4291-8173-149824928339
 # ╟─d8ea13f6-34b2-4f9e-9d33-f02cffdd9f56
+# ╠═05ae76b2-f489-4264-bd42-9314a8aad0a9
 # ╠═3fe16edc-93b1-48a0-8d3c-5e56e2c13b2b
+# ╠═f72bd266-4559-4895-b753-ced821ffc44e
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
