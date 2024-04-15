@@ -1,0 +1,1 @@
+This repository stores the notebooks (`Jupyter` and `Pluto`) for the data download and `DIVAnd` analysis in the frame of the FAIR-EASE project.
