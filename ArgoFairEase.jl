@@ -1,8 +1,8 @@
 module ArgoFairEase
 
 using HTTP
-using JSON
 using JSON3
+using Contour
 using Dates
 using NCDatasets
 using OrderedCollections
@@ -91,5 +91,38 @@ function get_results(outputfile::AbstractString, parameter::AbstractString)
         time::Vector{DateTime}, field::Array{AbstractFloat, 4}
     end
 end
+
+"""
+    field2json(lonr, latr, field2D, thelevels)
+
+Convert the 2D array `field2D` to a JSON string.
+
+# Example
+```julia-repl
+julia> field2json(lonr, latr, field[:,:,1,2], 5.:0.25:12.5)
+```
+"""
+function field2json(lonr, latr, field2D, thelevels)
+    
+    # Compute the contours from the results
+    contoursfield = Contour.contours(lonr, latr, field2D, thelevels)
+    
+    # Create the geoJSON starting from a dictionary
+    geojsonfield = Dict(
+    "type" => "FeatureCollection",
+    "features" => [
+        Dict(
+            "type" => "Feature",
+            "geometry" => Dict(
+                "type" => "MultiPolygon",
+                "coordinates" => [[[[lon, lat] for (lon, lat) in zip(coordinates(line)[1], coordinates(line)[2])] for line in lines(cl)]]),
+            "properties" => Dict("field" => cl.level)
+        ) for cl in levels(contoursfield)]
+    )
+    
+    return JSON3.write(geojsonfield)
+end
+
+
 
 end
