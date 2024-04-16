@@ -14,186 +14,32 @@ macro bind(def, element)
     end
 end
 
-# ╔═╡ 557eda82-f679-11ee-274e-37137b03fb0f
+# ╔═╡ 13f47032-fc27-11ee-1340-e36c7d714492
 begin
 	using HTTP
 	using JSON
-	using JSON3
 	using Dates
 	using Printf
-	using NCDatasets
-	using OrderedCollections
 	using PyPlot
+	using NCDatasets
 	const plt = PyPlot
 	using PyCall
+	using Contour
 	using PlutoUI
-	using Markdown
-	using InteractiveUtils
-	using HypertextLiteral
+	using DIVAnd
 	mpl = pyimport("matplotlib")
-	mpl.style.use("./fairease.mplstyle")
 end
 
-# ╔═╡ d9954dc8-c243-4a95-ba50-7768db5b6a82
-using DIVAnd
-
-# ╔═╡ c2f31032-1a7c-4fed-9713-0dd33b02ba37
-md"""
-# Interpolation of Argo profilers data
-In this notebook we download Argo data using the Beacon API and then create gridded fields using the [`DIVAnd`] software tool. 
-
-In Pluto notebooks, all the cells are run directly, then if you modify one cell, all the cells depending on the modified one will be re-run.
-
-## Package installation
-1. The packages will be automatically downloaded if needed.
-2. They will be installed in the notebook (✓ symbol).
-3. Their version and dependencies will be written in the notebook file (not visible in the interface).
-"""
-
-# ╔═╡ 81791a25-bf35-44ef-b42d-c852b640163c
-md"""
-### Set API url 
-The URL is set up as an envionment variable, though other options exist.
-"""
-
-# ╔═╡ 4a823c93-6120-4204-ba4d-3b5558fc8e8d
-beaconURL = ENV["beaconURL"];
-
-# ╔═╡ e2c7e580-9202-4b4c-a41d-f00aff0f282f
-md"""
-## 📁 Files and directories
-We create separate directories for the data, the results and the plots.
-"""
-
-# ╔═╡ be148eac-bbba-4929-a5ca-a7735c9b77a9
-begin
-	datadir = "./data/"
-	outputdir = "./output/"
-	figdir = "./figures/"
-	mkpath.([datadir, outputdir, figdir]);
-end
-
-# ╔═╡ ff528eed-305f-4f2c-bf4b-c79f3ddd0010
-md"""
-## Options for the plots
-Plots can be produced using [`Leaflet`](https://leafletjs.com/) (interactive), [`Cartopy`](https://scitools.org.uk/cartopy/docs/latest/) and/or [`Basemap`](https://basemaptutorial.readthedocs.io/en/latest/).
-"""
-
-# ╔═╡ 31979a73-1b7f-4e84-9a18-ce8fd808d655
-@bind plotoptions MultiCheckBox(["Leaflet", "Cartopy", "Basemap"])
-
-# ╔═╡ 2d812c57-40f6-499b-972f-69be172d1365
-begin
-	useleaflet = "Leaflet" in plotoptions
-	usecartopy = "Cartopy" in plotoptions
-	usebasemap = "Basemap" in plotoptions;
-	@info("Plots with $(plotoptions)");
-end
-
-# ╔═╡ b20b0a42-2f04-4abc-8b37-278d62a42e32
-if usebasemap
-	using Conda
-	Conda.add("basemap");	
-	basemap = pyimport("mpl_toolkits.basemap")
-	Basemap = basemap.Basemap
-end;
-
-# ╔═╡ de7029a9-a5a5-4cea-82e1-43f596c2b617
-function prepare_query(parameter::String, unit::String, datestart::Date, dateend::Date, mindepth::Float64, maxdepth::Float64, minlon::Float64, maxlon::Float64, minlat::Float64, maxlat::Float64; 
-dateref::Date=Dates.Date(1950, 1, 1))
-
-    mintemporal = (datestart - dateref).value
-    maxtemporal = (dateend - dateref).value
-
-    
-    # Start with an ordered dictionary, then convert to JSON
-    paramdict = OrderedDict(
-    "query_parameters" => [
-    OrderedDict("data_parameter" => parameter,
-        "unit"=> unit,
-        "skip_fill_values" => true,
-        "alias"=> "sea_water_temperature"),
-    OrderedDict("data_parameter"=> "time",
-        "unit"=> "days since 1950-01-01 00:00:00 UTC",
-        "skip_fill_values"=> false,
-        "alias"=> "TEMPORAL"),
-    OrderedDict("data_parameter"=> "sea_water_pressure",
-        "unit"=> "decibar",
-        "include_original_data"=> false,
-        "alias"=> "DEPTH"),
-    OrderedDict("data_parameter"=> "longitude",
-        "unit"=> "degree_east",
-        "skip_fill_values"=> false,
-        "alias"=> "LONGITUDE"),
-    OrderedDict("data_parameter"=> "latitude",
-        "unit"=> "degree_north",
-        "skip_fill_values"=> false,
-        "alias"=> "LATITUDE")],
-    "filters"=> [
-        OrderedDict("for_query_parameter" => Dict("alias"=> "TEMPORAL"), "min"=> mintemporal, "max"=> maxtemporal),
-        OrderedDict("for_query_parameter" => Dict("alias"=> "DEPTH"), "min"=> mindepth, "max"=> maxdepth),
-        OrderedDict("for_query_parameter" => Dict("alias"=> "LONGITUDE"), "min"=> minlon, "max"=> maxlon),
-        OrderedDict("for_query_parameter" => Dict("alias"=> "LATITUDE"), "min"=> minlat, "max"=> maxlat)
-    ],
-    "output" => Dict("format"=> "netcdf")
-	)
-    body = JSON3.write(paramdict)
-    return body::String
-end
-
-# ╔═╡ e7ae81f3-970e-4d3f-936f-3073b1063e5c
-md"""
-## Select parameters
-### Variable name
-"""
-
-# ╔═╡ e57790e8-35e9-4920-b24b-0b1fe07f42ce
-variableunits = Dict("sea_water_temperature"=> "degree_Celsius", 
-					 "sea_water_salinity"=>"psu", 
-					 "mass_concentration_of_chlorophyll_a_in_sea_water"=>"mg/m3",   
-					 "moles_of_nitrate_per_unit_mass_in_sea_water"=>"micromole/kg")
-
-# ╔═╡ 9d3aa9d8-ab25-48b3-aede-428c9d960815
-@bind parameter Select(["sea_water_temperature",  "sea_water_salinity", 
-        "mass_concentration_of_chlorophyll_a_in_sea_water",   	"moles_of_nitrate_per_unit_mass_in_sea_water"])
-
-# ╔═╡ f7510e4d-5814-4511-bcc3-27df3db89a30
-md"""
-### 📏 Units
-The units should be updated everytime you change the variable name.
-"""
-
-# ╔═╡ 9b9716d9-d363-4e3c-be27-98ddcf9600e6
-@bind units Select(["degree_Celsius", "psu", "mg/m3", "micromole/kg"],
-				   default=variableunits[parameter])
-
-# ╔═╡ 5915e937-63ae-4ebb-99ce-01bfa9b40b63
-md"""
-### Period of interest
-"""
-
-# ╔═╡ 1803fa0b-45a4-443a-80d8-054537137f67
-begin
-	datestart = Dates.Date(2000, 1, 1)
-	dateend = Dates.Date(2021, 12, 31)
-end
-
-# ╔═╡ b9c9921b-b41a-480e-b0ac-fca6e652dc22
-md"""
-### Domain and depth of interest
-We create a dictionary with different regions
-"""
-
-# ╔═╡ 3de1e314-10a2-4604-9c2d-dda5e95e01b4
+# ╔═╡ 5ae09fb8-7131-4a8c-aa42-5f4bb62d45d2
 domaininfo = Dict("Black_Sea" => [25.975, 43.7, 39.8, 48.32],
 				  "Baltic_Sea" => [9., 36.5, 53., 65.],
 				  "Canary_Islands" => [-20., -9., 25., 31.5]
 				  )
 
-# ╔═╡ 7d195f6e-5308-40b3-9547-6614e96c006a
+# ╔═╡ 26c7b638-de85-485d-af77-a0dd2a177d38
 @bind regionname Select(collect(keys(domaininfo)))
 
-# ╔═╡ 775ce187-9ce5-4e75-aab8-b2153e7a5c29
+# ╔═╡ 79fb444c-d94d-46b5-be0a-eef6dc1d9a80
 begin
 	minlon = domaininfo[regionname][1]
 	maxlon = domaininfo[regionname][2]
@@ -203,180 +49,20 @@ begin
 	maxdepth = 50. #Maximum water depth
 end
 
-# ╔═╡ 0020634a-d792-4ace-bd74-ab565dfaa86d
-md"""
-## Query body based on input fields
-"""
-
-# ╔═╡ 7e741d55-ea1f-449e-939e-036259742653
-@time query = prepare_query(parameter, units, datestart, dateend, 
-    mindepth, maxdepth, minlon, maxlon, minlat, maxlat);
-
-# ╔═╡ c35fcaf8-6183-458c-8ff1-f3f2710670ee
-md"""
-### Perform request and write into netCDF file
-"""
-
-# ╔═╡ b5d4f777-6ac0-4e84-9179-e96e25f8d542
-begin 
-	filename = "./data/Argo_$(parameter)_$(regionname)_$(Dates.format(datestart, "yyyymmdd"))-$(Dates.format(dateend, "yyyymmdd"))_$(Int(mindepth))-$(Int(maxdepth))m.nc";
-	
-	@time open(filename, "w") do io
-	    HTTP.request("POST", "$(beaconURL)/api/query", 
-	    ["Content-Type" => "application/json"], query,
-	    response_stream=io);
-	end;
-end;
-
-# ╔═╡ 921f570e-6c64-4b3e-a7c9-beb9db7ef4c9
-md"""
-### Read netCDF content
-"""
-
-# ╔═╡ b64bc67d-ab2e-47a3-9f5f-0092f7917970
-function read_netcdf(datafile::AbstractString)
-    NCDataset(datafile, "r") do df
-        lon = df["LONGITUDE"][:] 
-        lat = df["LATITUDE"][:] 
-        depth = df["DEPTH"][:]
-        time = df["TEMPORAL"][:]
-        field = df["sea_water_temperature"][:];
-        return lon::Vector{Float64}, lat::Vector{Float64}, depth::Vector{Float64}, 
-            time::Vector{Dates.DateTime}, field::Vector{Float64}
-    end
+# ╔═╡ e2eda795-67ec-4f01-93f1-48e15d7b42c6
+begin
+	datestart = Dates.Date(2000, 1, 1)
+	dateend = Dates.Date(2021, 12, 31)
 end
 
-# ╔═╡ 7bac5550-6079-475d-8432-4913087a9a4b
-begin 
-	@time obslon, obslat, obsdepth, obsdates, obsval =  read_netcdf(filename);
-	coords = [ [obslon[i], obslat[i]] for i in 1:length(obslon) ];
-	unique!(coords);
+# ╔═╡ 781229f8-ccfe-41bd-9f9f-19d7bb686cda
+begin
+	yearlist = [Dates.year(datestart):Dates.year(dateend)];
+	monthlist = [[1,2,3],[4,5,6],[7,8,9],[10,11,12]];
+	TS = DIVAnd.TimeSelectorYearListMonthList(yearlist,monthlist);
 end
 
-# ╔═╡ 37ad43bd-432d-49f7-8d48-27e9831a3111
-md"""
-### 🌍 Interactive map ([`Leaflet`](https://leafletjs.com/))
-"""
-
-# ╔═╡ a2d61983-0042-405f-ada9-1024e86c1644
-@htl("""
-	<meta charset="utf-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1">
-	
-	<title>Observations in $(regionname)</title>
-	
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.8.0/dist/leaflet.css" integrity="sha512-hoalWLoI8r4UszCkZ5kL8vayOGVae1oxXe/2A4AO6J9+580uKHDO3JdHb7NzwwzK5xr/Fs0W40kiNHxM9vyTtQ==" crossorigin=""/>
-    <script src="https://unpkg.com/leaflet@1.8.0/dist/leaflet.js" integrity="sha512-BB3hKbKWOc9Ez/TAwyWxNXeoV9c1v6FIeYiBieIWkpLjauysF18NzgR1MBNBXf8/KABdlkX68nAhlwcDFLGPCQ==" crossorigin=""></script>
-      <script src="https://unpkg.com/leaflet-providers@latest/leaflet-providers.js"></script>
-
-	<style>
-		html, body {
-			height: 100%;
-			margin: 0;
-		}
-		.leaflet-container {
-			max-width: 100%;
-			max-height: 100%;
-		}
-	</style>
-
-<body>
-<div id="map" style="width: 100%; height: 400px;"></div>
-<script>
-
-	var map = L.map('map').setView([10., 0.], 6);
-	var myRenderer = L.canvas({ padding: 0.5 });
-
-	var OSM = L.tileLayer.provider('OpenStreetMap');
-	var Carto = L.tileLayer.provider('CartoDB.Positron').addTo(map);
-
-    var baseMaps = {
-      "OpenStreetMap": OSM,
-	  "Carto": Carto
-    };
-
-	var geojsonMarkerOptions = {
-		renderer: myRenderer,
-	    radius: 1.5,
-	    fillColor: "#ff7800",
-	    color: "#000",
-	    weight: 1,
-	    opacity: 1,
-	    fillOpacity: 0.8
-	};
-
-	var geojsonFeature = {
-            "type": "Feature",
-            "geometry": {
-                "type": "MultiPoint",
-	                "coordinates": $(coords)
-	            }
-	        };
-
-	var obs = L.geoJSON(geojsonFeature, {
-	    pointToLayer: function (feature, latlng) {
-	        return L.circleMarker(latlng, geojsonMarkerOptions);
-	    }
-	}).addTo(map);
-
-	var imageUrl = "https://github.com/gher-uliege/DIVAnd-FAIR-EASE/blob/main/figures/thecoast.png?raw=true"
-    //var imageUrl = "figures/thecoast.png"
-	var imageBounds = [[$(minlat), $(minlon)], [$(maxlat), $(maxlon)]];
-    //var field = L.imageOverlay(imageUrl, imageBounds, {opacity: 0.5}).addTo(map);
-
-	var bathy = L.tileLayer.wms("https://ows.emodnet-bathymetry.eu/wms", {
-	    layers: ['emodnet:mean_atlas_land', 'coastlines'],
-		format: 'image/png',
-	    transparent: true,
-	    attribution: "EMODnet Bathymetry"
-	}).addTo(map);
-
-	var southWest = new L.LatLng($(minlat), $(minlon)),
-    	northEast = new L.LatLng($(maxlat), $(maxlon)),
-    	bounds = new L.LatLngBounds(southWest, northEast)
-
-	
-	var overlayers = {
-    	"Observation locations" : obs,
-		"EMODnet bathymetry": bathy,
-    };
-
-	L.control.layers(baseMaps, overlayers, {collapsed:false}).addTo(map);
-	
-
-	map.fitBounds(bounds);
-</script>
-
-</body>
-""")
-
-# ╔═╡ 21aa2085-6c2e-41b8-97bc-e6eae39c924e
-md"""
-## 🎨 Make plot
-### Create figure title
-"""
-
-# ╔═╡ 05def578-6786-4713-af46-ac58b334f5c7
-if usecartopy
-	# using Conda
-	# Conda.add("cartopy");	
-	ccrs = pyimport("cartopy.crs")
-	cfeature = pyimport("cartopy.feature")
-	coast = cfeature.GSHHSFeature(scale="h")
-	dataproj = ccrs.PlateCarree();
-end;
-
-# ╔═╡ 888ba762-4101-4139-88e9-8978d734f1cd
-md"""
-## DIVAnd interpolation
-"""
-
-# ╔═╡ ee28b85c-dd78-4edc-bacc-8cf0e8f1d6d5
-md"""
-### Set grid
-"""
-
-# ╔═╡ f3f219ba-b73b-460b-ac03-483bff5bf42b
+# ╔═╡ efb4d5f5-d801-49fa-bf06-10a36f6d1aa2
 begin
 	dx, dy = 0.25, 0.25
 	lonr = minlon:dx:maxlon
@@ -391,256 +77,47 @@ begin
 	depthr = depthr[depthr .<= maxdepth];
 end
 
-# ╔═╡ 52363e92-93a4-457c-b358-42f0ac8bb0b1
-md"""
-### Time periods
-"""
+# ╔═╡ eab2d052-a75e-46e8-99a6-d70798aa3515
+@bind depth2plot Select(depthr)
 
-# ╔═╡ 706f5855-62e7-48cc-9fb3-f43af4f5c9ec
-begin
-	yearlist = [Dates.year(datestart):Dates.year(dateend)];
-	monthlist = [[1,2,3],[4,5,6],[7,8,9],[10,11,12]];
-	TS = DIVAnd.TimeSelectorYearListMonthList(yearlist,monthlist);
-end
+# ╔═╡ 592ba530-b52b-45f1-96a5-7217439b076a
+depthindex = findfirst(depth2plot .== depthr)
 
-# ╔═╡ 23eca676-7c99-458a-8999-f799ba5b0222
-begin 
-	figtitleobs = """
-		Observations: Argo $(regionname): $(parameter) at $(depthr[1]) m
-		Period: $(Dates.monthname(monthlist[1][1])) - $(Dates.monthname(monthlist[1][end])) $(yearlist[1][1]) - $(yearlist[1][end])"""
-end
+# ╔═╡ 81a21541-9b8b-43a0-9baf-80305abd05d6
+@bind months2plot Select(monthlist)
 
-# ╔═╡ 64055f4f-d453-4535-8cce-02a23ab99275
-if usecartopy
+# ╔═╡ c3078c5c-0c3b-42e1-85a9-c3bd28406f96
+monthindex = findfirst(months2plot == monthlist)
 
-	fig1 = plt.figure()
-	ax1 = plt.subplot(111, projection=ccrs.PlateCarree())
-	ax1.set_extent([minlon, maxlon, minlat, maxlat])
-	scat = ax1.scatter(obslon, obslat, s=3, c=obsval, cmap=plt.cm.RdYlBu_r)
-	gl = ax1.gridlines(crs=ccrs.PlateCarree(), draw_labels=true,
-	                  linewidth=.5, color="gray", alpha=0.5, linestyle="--", zorder=3)
-	ax1.add_feature(coast, lw=.5, color=".85", zorder=4)
-	gl.top_labels = false
-	gl.right_labels = false
-	ax1.set_title(figtitleobs)
-	
-	cbar1 = plt.colorbar(scat, shrink=.65)
-	cbar1.set_label(units, rotation=0, ha="left")
-	
-	plt.savefig(joinpath(figdir, "observations.jpg"))
-	plt.close(fig1)
+# ╔═╡ 2a5e2fd1-ef91-4f7f-a66f-42ea00686def
+months2plot in monthlist
 
-	LocalResource(joinpath(figdir, "observations.jpg"))
+# ╔═╡ b2836d61-716e-4d4b-b475-9f6304f33b13
+@bind year2plot Select(yearlist)
 
-end
+# ╔═╡ d4fb4114-3289-400e-94ef-70e989f7d34f
 
-# ╔═╡ 7b97d3ad-97aa-46bf-8141-15ce7c077863
-if usebasemap
-
-	fig2 = plt.figure()
-	ax2 = plt.subplot(111)
-
-	m = Basemap(projection = "cyl", llcrnrlon = minlon, llcrnrlat = minlat, 
-    urcrnrlon = maxlon, urcrnrlat = maxlat, resolution = "i") 
-
-	sc = m.scatter(obslon, obslat, latlon=true, s=3, c=obsval, cmap=plt.cm.RdYlBu_r)
-	m.drawlsmask(land_color = ".85", ocean_color = "#CCFFFF"); 
-	m.drawcoastlines(linewidth=.5)
-	m.drawparallels(collect(0.:5.:90.), color="gray", labels=[1,0,0,0])
-	m.drawmeridians(collect(-10.:10.:80.), color="gray", labels=[0,0,0,1])
-	ax2.set_title(figtitleobs)
-	
-	cbar2 = plt.colorbar(scat, shrink=.65)
-	cbar2.set_label(units, rotation=0, ha="left")
-	
-	plt.savefig(joinpath(figdir, "observations.jpg"))
-	plt.close(fig2)
-
-	LocalResource(joinpath(figdir, "observations.jpg"))
-
-end
-
-# ╔═╡ 38518967-9544-4ab3-b881-3962de5e368c
-md"""
-### Analysis parameters
-"""
-
-# ╔═╡ d2c1848d-87ec-42da-9525-315c787ce5d8
-begin
-	sz = (length(lonr), length(latr), length(depthr));
-	lenx = fill(100_000.,sz)   # 100 km
-	leny = fill(100_000.,sz)   # 100 km
-	lenz = fill(5.,sz);      # 25 m 
-	len = (lenx, leny, lenz);
-	epsilon2 = 0.1;
-end
-
-# ╔═╡ 4696c1e6-8f20-4bf3-8bb9-4a22eee6cbd7
-md"""
-### Output file name
-"""
-
-# ╔═╡ c32ddf96-26aa-43dc-93a5-7f2ab807ff19
-outputfile = joinpath(outputdir, "Argo_DIVAnd_$(parameter)_$(regionname)_$(Dates.format(datestart, "yyyymmdd"))-$(Dates.format(dateend, "yyyymmdd"))_$(Int(mindepth))-$(Int(maxdepth))m.nc")
-
-# ╔═╡ 635c8b69-3e30-4ddd-b6df-1c90e8a516b9
-md"""
-### Select the bathymetry file
-"""
-
-# ╔═╡ 79a50ac3-a5c1-499e-801d-eebc7501d2bb
-bathname = joinpath(datadir, "gebco_30sec_16.nc")
-
-# ╔═╡ b8b9a325-b647-4e19-bb95-a768e1c457c3
-md"""
-### Helper function to generate plots
-"""
-
-# ╔═╡ 4cb3bb80-2b61-49df-9be5-71d92b56c367
-function makemap(timeindex,sel,fit,erri)
-    tmp = copy(fit)
-    nx,ny,nz = size(tmp)
-    for i in 1:nz
-        plt.figure()
-        ax = plt.subplot(111, projection=ccrs.PlateCarree())
-        ax.set_extend([lonr[1], lonr[end], latr[1], latr[end]])
-        pcm = ax.pcolormesh(lonr, latr, permutedims(tmp[:,:,i], [2,1]), cmap=plt.cm.RdYlBu_r)
-        cb = plt.colorbar(pcm, extend="both", orientation="vertical", shrink=0.8)
-        cb.set_label("°C", rotation=0, ha="left")
-        gl = ax.gridlines(crs=ccrs.PlateCarree(), draw_labels=true,
-                  linewidth=.5, color="gray", alpha=0.5, linestyle="--", zorder=3)
-        ax.add_feature(coast, lw=.5, color=".85", zorder=4)
-        gl.top_labels = false
-        gl.right_labels = false
-        
-        ax.set_title("Depth: $(depthr[i]) \n Time index: $(timeindex)")
-        
-        figname = parameter * @sprintf("_%02d",i) * @sprintf("_%03d.png",timeindex)
-        plt.savefig(joinpath(figdir, figname));
-        plt.close_figs()
-    end
-end
-
-# ╔═╡ 3c65c949-2b21-4f70-9bd3-04fb783fd9d2
-md"""
-### ⚙️ Run analysis
-"""
-
-# ╔═╡ f84ddbf7-934b-47d9-9bf3-39d3d1bd076c
-@time dbinfo = diva3d((lonr, latr, depthr, TS),
-    (obslon,obslat,obsdepth,obsdates), obsval,
-    len, epsilon2,
-    outputfile,parameter,
-    bathname=joinpath(datadir, "gebco_30sec_16.nc"),
-    fitcorrlen = false,
-    niter_e = 2,
-    surfextend = true
-    );
-
-# ╔═╡ d708b881-8678-40cc-8a07-0513a41159c6
-md"""
-### Read the results
-"""
-
-# ╔═╡ 226d77a9-c50d-4d4c-a906-86631dd60b50
-function get_results(outputfile::AbstractString, parameter::AbstractString)
-    NCDataset(outputfile, "r") do ds
-        lon = ds["lon"][:]
-        lat = ds["lat"][:]
-        depth = ds["depth"][:]
-        time = ds["time"][:]
-        field = coalesce.(ds[parameter][:,:,:,:], NaN)
-        
-        return lon::Vector{Float64}, lat::Vector{Float64}, depth::Vector{Float64}, 				   time::Vector{DateTime}, field::Array{AbstractFloat, 4}
-    end
-end
-
-# ╔═╡ 8c4e4476-b1a1-4291-8173-149824928339
-lon, lat, depth, time, field = get_results(outputfile, parameter);
-
-# ╔═╡ d8ea13f6-34b2-4f9e-9d33-f02cffdd9f56
-md"""
-### 🎨 Create the plot
-"""
-
-# ╔═╡ 05ae76b2-f489-4264-bd42-9314a8aad0a9
-figtitle = """
-DIVAnd analysis: Argo $(regionname): $(parameter) at $(depthr[1]) m
-Period: $(Dates.monthname(monthlist[1][1])) - $(Dates.monthname(monthlist[1][end])) $(yearlist[1][1]) - $(yearlist[1][end])"""
-
-# ╔═╡ 3fe16edc-93b1-48a0-8d3c-5e56e2c13b2b
-if usecartopy
-
-	fig3 = plt.figure(figsize = (12, 8))
-	ax3 = plt.subplot(111, projection=ccrs.PlateCarree())
-	ax3.set_extent([minlon, maxlon, minlat, maxlat])
-	pcm3 = ax3.pcolormesh(lon, lat, field[:,:,1,1]', cmap=plt.cm.RdYlBu_r)
-	gl3 = ax3.gridlines(crs=ccrs.PlateCarree(), draw_labels=true,
-	                  linewidth=.5, color="gray", alpha=0.5, linestyle="--", zorder=3)
-	ax3.add_feature(coast, lw=.5, color=".85", zorder=4)
-	gl3.top_labels = false
-	gl3.right_labels = false
-	ax3.set_title(figtitle)
-	
-	cbar3 = plt.colorbar(pcm3, shrink=.65)
-	cbar3.set_label(units, rotation=0, ha="left")
-	plt.savefig(joinpath(figdir, "Argo_interpolation.jpg"))
-	plt.close()
-
-	LocalResource(joinpath(figdir, "Argo_interpolation.jpg"))
-end
-
-# ╔═╡ f72bd266-4559-4895-b753-ced821ffc44e
-if usebasemap
-
-	fig4 = plt.figure(figsize = (12, 8))
-	ax4 = plt.subplot(111)
-	m4 = Basemap(projection = "cyl", llcrnrlon = minlon, llcrnrlat = minlat, 
-    urcrnrlon = maxlon, urcrnrlat = maxlat, resolution = "i") 
-	
-	pcm4 = m4.pcolormesh(lon, lat, field[:,:,1,1]', cmap=plt.cm.RdYlBu_r, latlon=true)
-
-	m4.drawlsmask(land_color = ".85", ocean_color = "#CCFFFF"); 
-	m4.drawcoastlines(linewidth=.5)
-	m4.drawparallels(collect(0.:5.:90.), color="gray", labels=[1,0,0,0])
-	m4.drawmeridians(collect(-10.:10.:80.), color="gray", labels=[0,0,0,1])
-	
-	cbar4 = plt.colorbar(pcm4, shrink=.65)
-	cbar4.set_label(units, rotation=0, ha="left")
-	plt.savefig(joinpath(figdir, "Argo_interpolation.jpg"))
-	plt.close()
-
-	LocalResource(joinpath(figdir, "Argo_interpolation.jpg"))
-end
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
-Conda = "8f4d0f93-b110-5947-807f-2305c1781a2d"
+Contour = "d38c429a-6771-53c6-b99e-75d170b6e991"
 DIVAnd = "efc8151c-67de-5a8f-9a35-d8f54746ae9d"
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 HTTP = "cd3eb016-35fb-5094-929b-558a96fad6f3"
-HypertextLiteral = "ac1192a8-f4b3-4bfe-ba22-af5b92cd3ab2"
-InteractiveUtils = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
 JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
-JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
-Markdown = "d6f4376e-aef5-505a-96c1-9c027394607a"
 NCDatasets = "85f8d34a-cbdd-5861-8df4-14fed0d494ab"
-OrderedCollections = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 PyCall = "438e738f-606a-5dbb-bf0a-cddfbfd45ab0"
 PyPlot = "d330b81b-6aea-500a-939a-2ce795aea3ee"
 
 [compat]
-Conda = "~1.10.0"
+Contour = "~0.6.3"
 DIVAnd = "~2.7.11"
 HTTP = "~1.10.5"
-HypertextLiteral = "~0.9.5"
 JSON = "~0.21.4"
-JSON3 = "~1.14.0"
 NCDatasets = "~0.14.3"
-OrderedCollections = "~1.6.3"
 PlutoUI = "~0.7.58"
 PyCall = "~1.96.4"
 PyPlot = "~2.11.2"
@@ -652,7 +129,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.10.2"
 manifest_format = "2.0"
-project_hash = "752f3cba5551d0cac3c12afbc608dc870e2435f3"
+project_hash = "4cebd7745fdb33b7d2fd25561aa165d9a60f8203"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "016833eb52ba2d6bea9fcb50ca295980e728ee24"
@@ -661,9 +138,9 @@ version = "0.2.7"
 
 [[deps.AbstractPlutoDingetjes]]
 deps = ["Pkg"]
-git-tree-sha1 = "0f748c81756f2e5e6854298f11ad8b2dfae6911a"
+git-tree-sha1 = "297b6b41b66ac7cbbebb4a740844310db9fd7b8c"
 uuid = "6e696c72-6542-2067-7265-42206c756150"
-version = "1.3.0"
+version = "1.3.1"
 
 [[deps.Accessors]]
 deps = ["CompositionsBase", "ConstructionBase", "Dates", "InverseFunctions", "LinearAlgebra", "MacroTools", "Markdown", "Test"]
@@ -889,6 +366,11 @@ version = "1.5.5"
     IntervalSets = "8197267c-284f-5f27-9208-e0e47529a953"
     StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
+[[deps.Contour]]
+git-tree-sha1 = "439e35b0b36e2e5881738abc8857bd92ad6ff9a8"
+uuid = "d38c429a-6771-53c6-b99e-75d170b6e991"
+version = "0.6.3"
+
 [[deps.CpuId]]
 deps = ["Markdown"]
 git-tree-sha1 = "fcbb72b032692610bfbdb15018ac16a36cf2e406"
@@ -908,9 +390,9 @@ version = "1.16.0"
 
 [[deps.DataStructures]]
 deps = ["Compat", "InteractiveUtils", "OrderedCollections"]
-git-tree-sha1 = "0f4b5d62a88d8f59003e43c25a8a90de9eb76317"
+git-tree-sha1 = "97d79461925cdb635ee32116978fc735b9463a39"
 uuid = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
-version = "0.18.18"
+version = "0.18.19"
 
 [[deps.DataValueInterfaces]]
 git-tree-sha1 = "bfc1187b79289637fa0ef6d4436ebdfe6905cbd6"
@@ -1034,10 +516,10 @@ uuid = "0951126a-58fd-58f1-b5b3-b08c7c4a876d"
 version = "3.8.4+0"
 
 [[deps.HDF5_jll]]
-deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "LazyArtifacts", "LibCURL_jll", "Libdl", "MPICH_jll", "MPIPreferences", "MPItrampoline_jll", "MicrosoftMPI_jll", "OpenMPI_jll", "OpenSSL_jll", "TOML", "Zlib_jll", "libaec_jll"]
-git-tree-sha1 = "82a471768b513dc39e471540fdadc84ff80ff997"
+deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "LLVMOpenMP_jll", "LazyArtifacts", "LibCURL_jll", "Libdl", "MPICH_jll", "MPIPreferences", "MPItrampoline_jll", "MicrosoftMPI_jll", "OpenMPI_jll", "OpenSSL_jll", "TOML", "Zlib_jll", "libaec_jll"]
+git-tree-sha1 = "38c8874692d48d5440d5752d6c74b0c6b0b60739"
 uuid = "0234f1f7-429e-5d53-9886-15a909be8d59"
-version = "1.14.3+3"
+version = "1.14.2+1"
 
 [[deps.HTTP]]
 deps = ["Base64", "CodecZlib", "ConcurrentUtilities", "Dates", "ExceptionUnwrapping", "Logging", "LoggingExtras", "MbedTLS", "NetworkOptions", "OpenSSL", "Random", "SimpleBufferStream", "Sockets", "URIs", "UUIDs"]
@@ -1140,18 +622,6 @@ git-tree-sha1 = "31e996f0a15c7b280ba9f76636b3ff9e2ae58c9a"
 uuid = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 version = "0.21.4"
 
-[[deps.JSON3]]
-deps = ["Dates", "Mmap", "Parsers", "PrecompileTools", "StructTypes", "UUIDs"]
-git-tree-sha1 = "eb3edce0ed4fa32f75a0a11217433c31d56bd48b"
-uuid = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
-version = "1.14.0"
-
-    [deps.JSON3.extensions]
-    JSON3ArrowExt = ["ArrowTypes"]
-
-    [deps.JSON3.weakdeps]
-    ArrowTypes = "31f734f8-188a-4ce0-8406-c8a06bd891cd"
-
 [[deps.KLU]]
 deps = ["LinearAlgebra", "SparseArrays", "SuiteSparse_jll"]
 git-tree-sha1 = "07649c499349dad9f08dde4243a4c597064663e9"
@@ -1163,6 +633,12 @@ deps = ["LinearAlgebra", "Printf", "SparseArrays"]
 git-tree-sha1 = "8a6837ec02fe5fb3def1abc907bb802ef11a0729"
 uuid = "ba0b0d4f-ebba-5204-a429-3ac8c609bfb7"
 version = "0.9.5"
+
+[[deps.LLVMOpenMP_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl"]
+git-tree-sha1 = "d986ce2d884d49126836ea94ed5bfb0f12679713"
+uuid = "1d63c593-3942-5779-bab2-d838dc0a180e"
+version = "15.0.7+0"
 
 [[deps.LRUCache]]
 git-tree-sha1 = "b3cc6698599b10e652832c2f23db3cab99d51b59"
@@ -1362,9 +838,9 @@ uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 
 [[deps.MatrixFactorizations]]
 deps = ["ArrayLayouts", "LinearAlgebra", "Printf", "Random"]
-git-tree-sha1 = "eecef9daff3b2b58cc666ee0c85d1b9889b6e98e"
+git-tree-sha1 = "6731e0574fa5ee21c02733e397beb133df90de35"
 uuid = "a3b82374-2e81-5b9e-98ce-41277c0e4c87"
-version = "2.1.2"
+version = "2.2.0"
 
 [[deps.MbedTLS]]
 deps = ["Dates", "MbedTLS_jll", "MozillaCACerts_jll", "NetworkOptions", "Random", "Sockets"]
@@ -1425,9 +901,9 @@ uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
 version = "1.2.0"
 
 [[deps.OffsetArrays]]
-git-tree-sha1 = "6a731f2b5c03157418a20c12195eb4b74c8f8621"
+git-tree-sha1 = "e64b4f5ea6b7389f6f046d13d4896a8f9c1ba71e"
 uuid = "6fe1bfb0-de20-5000-8ca7-80f57d26f881"
-version = "1.13.0"
+version = "1.14.0"
 weakdeps = ["Adapt"]
 
     [deps.OffsetArrays.extensions]
@@ -1444,10 +920,10 @@ uuid = "05823500-19ac-5b8b-9628-191a04bc5112"
 version = "0.8.1+2"
 
 [[deps.OpenMPI_jll]]
-deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "MPIPreferences", "TOML"]
-git-tree-sha1 = "e25c1778a98e34219a00455d6e4384e017ea9762"
+deps = ["Artifacts", "CompilerSupportLibraries_jll", "Hwloc_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "MPIPreferences", "PMIx_jll", "TOML", "Zlib_jll", "libevent_jll", "prrte_jll"]
+git-tree-sha1 = "f46caf663e069027a06942d00dced37f1eb3d8ad"
 uuid = "fe0851c0-eecd-5654-98d4-656369965a5c"
-version = "4.1.6+0"
+version = "5.0.2+0"
 
 [[deps.OpenSSL]]
 deps = ["BitFlags", "Dates", "MozillaCACerts_jll", "OpenSSL_jll", "Sockets"]
@@ -1477,6 +953,12 @@ deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
 git-tree-sha1 = "2cd396108e178f3ae8dedbd8e938a18726ab2fbf"
 uuid = "c2071276-7c44-58a7-b746-946036e04d0a"
 version = "0.24.1+0"
+
+[[deps.PMIx_jll]]
+deps = ["Artifacts", "Hwloc_jll", "JLLWrappers", "Libdl", "Zlib_jll", "libevent_jll"]
+git-tree-sha1 = "360f48126b5f2c2f0c833be960097f7c62705976"
+uuid = "32165bc3-0280-59bc-8c0b-c33b6203efab"
+version = "4.2.9+0"
 
 [[deps.Parsers]]
 deps = ["Dates", "PrecompileTools", "UUIDs"]
@@ -1585,9 +1067,9 @@ version = "3.13.0"
 
 [[deps.RecursiveFactorization]]
 deps = ["LinearAlgebra", "LoopVectorization", "Polyester", "PrecompileTools", "StrideArraysCore", "TriangularSolve"]
-git-tree-sha1 = "8bc86c78c7d8e2a5fe559e3721c0f9c9e303b2ed"
+git-tree-sha1 = "6db1a75507051bc18bfa131fbc7c3f169cc4b2f6"
 uuid = "f2c3362d-daeb-58d1-803e-2bc74f2840b4"
-version = "0.2.21"
+version = "0.2.23"
 
 [[deps.Reexport]]
 git-tree-sha1 = "45e428421666073eab6f2da5c9d310d99bb12f9b"
@@ -1623,9 +1105,9 @@ version = "0.6.42"
 
 [[deps.SciMLBase]]
 deps = ["ADTypes", "ArrayInterface", "CommonSolve", "ConstructionBase", "Distributed", "DocStringExtensions", "EnumX", "FunctionWrappersWrappers", "IteratorInterfaceExtensions", "LinearAlgebra", "Logging", "Markdown", "PrecompileTools", "Preferences", "Printf", "RecipesBase", "RecursiveArrayTools", "Reexport", "RuntimeGeneratedFunctions", "SciMLOperators", "SciMLStructures", "StaticArraysCore", "Statistics", "SymbolicIndexingInterface", "Tables"]
-git-tree-sha1 = "d15c65e25615272e1b1c5edb1d307484c7942824"
+git-tree-sha1 = "f2e02d7a85d302c9452a9baf1272b5f95805832b"
 uuid = "0bca4576-84f4-4d90-8ffe-ffa030f20462"
-version = "2.31.0"
+version = "2.33.0"
 
     [deps.SciMLBase.extensions]
     SciMLBaseChainRulesCoreExt = "ChainRulesCore"
@@ -1739,15 +1221,9 @@ version = "1.10.0"
 
 [[deps.StrideArraysCore]]
 deps = ["ArrayInterface", "CloseOpenIntervals", "IfElse", "LayoutPointers", "LinearAlgebra", "ManualMemory", "SIMDTypes", "Static", "StaticArrayInterface", "ThreadingUtilities"]
-git-tree-sha1 = "b164d4dc04d7072066b725b7906e56331b170004"
+git-tree-sha1 = "b518da45c50dfab8384125ba829f1739bda41034"
 uuid = "7792a7ef-975c-4747-a70f-980b88e8d1da"
-version = "0.5.3"
-
-[[deps.StructTypes]]
-deps = ["Dates", "UUIDs"]
-git-tree-sha1 = "ca4bccb03acf9faaf4137a9abc1881ed1841aa70"
-uuid = "856f2bd8-1eba-4b0a-8007-ebc267875bd4"
-version = "1.10.0"
+version = "0.5.5"
 
 [[deps.SuiteSparse]]
 deps = ["Libdl", "LinearAlgebra", "Serialization", "SparseArrays"]
@@ -1760,9 +1236,9 @@ version = "7.2.1+1"
 
 [[deps.SymbolicIndexingInterface]]
 deps = ["Accessors", "ArrayInterface", "MacroTools", "RuntimeGeneratedFunctions", "StaticArraysCore"]
-git-tree-sha1 = "4b7f4c80449d8baae8857d55535033981862619c"
+git-tree-sha1 = "40ea524431a92328cd73582d1820a5b08247a40f"
 uuid = "2efcf032-c050-4f8e-a9bb-153293bab1f5"
-version = "0.3.15"
+version = "0.3.16"
 
 [[deps.TOML]]
 deps = ["Dates"]
@@ -1807,9 +1283,9 @@ weakdeps = ["Random", "Test"]
 
 [[deps.TriangularSolve]]
 deps = ["CloseOpenIntervals", "IfElse", "LayoutPointers", "LinearAlgebra", "LoopVectorization", "Polyester", "Static", "VectorizationBase"]
-git-tree-sha1 = "7ee8ed8904e7dd5d31bb46294ef5644d9e2e44e4"
+git-tree-sha1 = "66c68a20907800c0b7c04ff8a6164115e8747de2"
 uuid = "d5829a12-d9aa-46ab-831f-fb7c9ab06edf"
-version = "0.1.21"
+version = "0.2.0"
 
 [[deps.Tricks]]
 git-tree-sha1 = "eae1bb484cd63b36999ee58be2de6c178105112f"
@@ -1835,9 +1311,9 @@ uuid = "4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5"
 
 [[deps.VectorizationBase]]
 deps = ["ArrayInterface", "CPUSummary", "HostCPUFeatures", "IfElse", "LayoutPointers", "Libdl", "LinearAlgebra", "SIMDTypes", "Static", "StaticArrayInterface"]
-git-tree-sha1 = "7209df901e6ed7489fe9b7aa3e46fb788e15db85"
+git-tree-sha1 = "ac377f0a248753a1b1d58bbc92a64f5a726dfb71"
 uuid = "3d5dd08c-fd9d-11e8-17fa-ed2836048c2f"
-version = "0.21.65"
+version = "0.21.66"
 
 [[deps.VersionParsing]]
 git-tree-sha1 = "58d6e80b4ee071f5efd07fda82cb9fbe17200868"
@@ -1890,6 +1366,12 @@ deps = ["Artifacts", "Libdl"]
 uuid = "8e850b90-86db-534c-a0d3-1478176c7d93"
 version = "5.8.0+1"
 
+[[deps.libevent_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl", "OpenSSL_jll"]
+git-tree-sha1 = "f04ec6d9a186115fb38f858f05c0c4e1b7fc9dcb"
+uuid = "1080aeaf-3a6a-583e-a51c-c537b09f60ec"
+version = "2.1.13+1"
+
 [[deps.libzip_jll]]
 deps = ["Artifacts", "Bzip2_jll", "GnuTLS_jll", "JLLWrappers", "Libdl", "XZ_jll", "Zlib_jll", "Zstd_jll"]
 git-tree-sha1 = "3282b7d16ae7ac3e57ec2f3fa8fafb564d8f9f7f"
@@ -1905,67 +1387,28 @@ version = "1.52.0+1"
 deps = ["Artifacts", "Libdl"]
 uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
 version = "17.4.0+2"
+
+[[deps.prrte_jll]]
+deps = ["Artifacts", "Hwloc_jll", "JLLWrappers", "Libdl", "PMIx_jll", "libevent_jll"]
+git-tree-sha1 = "5adb2d7a18a30280feb66cad6f1a1dfdca2dc7b0"
+uuid = "eb928a42-fffd-568d-ab9c-3f5d54fc65b9"
+version = "3.0.2+0"
 """
 
 # ╔═╡ Cell order:
-# ╟─c2f31032-1a7c-4fed-9713-0dd33b02ba37
-# ╠═557eda82-f679-11ee-274e-37137b03fb0f
-# ╟─81791a25-bf35-44ef-b42d-c852b640163c
-# ╠═4a823c93-6120-4204-ba4d-3b5558fc8e8d
-# ╟─e2c7e580-9202-4b4c-a41d-f00aff0f282f
-# ╠═be148eac-bbba-4929-a5ca-a7735c9b77a9
-# ╟─ff528eed-305f-4f2c-bf4b-c79f3ddd0010
-# ╟─31979a73-1b7f-4e84-9a18-ce8fd808d655
-# ╟─2d812c57-40f6-499b-972f-69be172d1365
-# ╟─de7029a9-a5a5-4cea-82e1-43f596c2b617
-# ╟─e7ae81f3-970e-4d3f-936f-3073b1063e5c
-# ╟─e57790e8-35e9-4920-b24b-0b1fe07f42ce
-# ╟─9d3aa9d8-ab25-48b3-aede-428c9d960815
-# ╟─f7510e4d-5814-4511-bcc3-27df3db89a30
-# ╠═9b9716d9-d363-4e3c-be27-98ddcf9600e6
-# ╟─5915e937-63ae-4ebb-99ce-01bfa9b40b63
-# ╠═1803fa0b-45a4-443a-80d8-054537137f67
-# ╟─b9c9921b-b41a-480e-b0ac-fca6e652dc22
-# ╠═3de1e314-10a2-4604-9c2d-dda5e95e01b4
-# ╠═7d195f6e-5308-40b3-9547-6614e96c006a
-# ╠═775ce187-9ce5-4e75-aab8-b2153e7a5c29
-# ╟─0020634a-d792-4ace-bd74-ab565dfaa86d
-# ╠═7e741d55-ea1f-449e-939e-036259742653
-# ╟─c35fcaf8-6183-458c-8ff1-f3f2710670ee
-# ╠═b5d4f777-6ac0-4e84-9179-e96e25f8d542
-# ╟─921f570e-6c64-4b3e-a7c9-beb9db7ef4c9
-# ╟─b64bc67d-ab2e-47a3-9f5f-0092f7917970
-# ╠═7bac5550-6079-475d-8432-4913087a9a4b
-# ╟─37ad43bd-432d-49f7-8d48-27e9831a3111
-# ╟─a2d61983-0042-405f-ada9-1024e86c1644
-# ╟─21aa2085-6c2e-41b8-97bc-e6eae39c924e
-# ╠═23eca676-7c99-458a-8999-f799ba5b0222
-# ╠═b20b0a42-2f04-4abc-8b37-278d62a42e32
-# ╠═05def578-6786-4713-af46-ac58b334f5c7
-# ╠═64055f4f-d453-4535-8cce-02a23ab99275
-# ╠═7b97d3ad-97aa-46bf-8141-15ce7c077863
-# ╟─888ba762-4101-4139-88e9-8978d734f1cd
-# ╠═d9954dc8-c243-4a95-ba50-7768db5b6a82
-# ╟─ee28b85c-dd78-4edc-bacc-8cf0e8f1d6d5
-# ╠═f3f219ba-b73b-460b-ac03-483bff5bf42b
-# ╟─52363e92-93a4-457c-b358-42f0ac8bb0b1
-# ╠═706f5855-62e7-48cc-9fb3-f43af4f5c9ec
-# ╟─38518967-9544-4ab3-b881-3962de5e368c
-# ╠═d2c1848d-87ec-42da-9525-315c787ce5d8
-# ╟─4696c1e6-8f20-4bf3-8bb9-4a22eee6cbd7
-# ╠═c32ddf96-26aa-43dc-93a5-7f2ab807ff19
-# ╟─635c8b69-3e30-4ddd-b6df-1c90e8a516b9
-# ╠═79a50ac3-a5c1-499e-801d-eebc7501d2bb
-# ╟─b8b9a325-b647-4e19-bb95-a768e1c457c3
-# ╠═4cb3bb80-2b61-49df-9be5-71d92b56c367
-# ╟─3c65c949-2b21-4f70-9bd3-04fb783fd9d2
-# ╠═f84ddbf7-934b-47d9-9bf3-39d3d1bd076c
-# ╟─d708b881-8678-40cc-8a07-0513a41159c6
-# ╟─226d77a9-c50d-4d4c-a906-86631dd60b50
-# ╠═8c4e4476-b1a1-4291-8173-149824928339
-# ╟─d8ea13f6-34b2-4f9e-9d33-f02cffdd9f56
-# ╠═05ae76b2-f489-4264-bd42-9314a8aad0a9
-# ╠═3fe16edc-93b1-48a0-8d3c-5e56e2c13b2b
-# ╠═f72bd266-4559-4895-b753-ced821ffc44e
+# ╠═13f47032-fc27-11ee-1340-e36c7d714492
+# ╠═5ae09fb8-7131-4a8c-aa42-5f4bb62d45d2
+# ╠═26c7b638-de85-485d-af77-a0dd2a177d38
+# ╠═79fb444c-d94d-46b5-be0a-eef6dc1d9a80
+# ╠═e2eda795-67ec-4f01-93f1-48e15d7b42c6
+# ╠═781229f8-ccfe-41bd-9f9f-19d7bb686cda
+# ╠═efb4d5f5-d801-49fa-bf06-10a36f6d1aa2
+# ╠═eab2d052-a75e-46e8-99a6-d70798aa3515
+# ╠═592ba530-b52b-45f1-96a5-7217439b076a
+# ╠═81a21541-9b8b-43a0-9baf-80305abd05d6
+# ╠═c3078c5c-0c3b-42e1-85a9-c3bd28406f96
+# ╠═2a5e2fd1-ef91-4f7f-a66f-42ea00686def
+# ╠═b2836d61-716e-4d4b-b475-9f6304f33b13
+# ╠═d4fb4114-3289-400e-94ef-70e989f7d34f
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
