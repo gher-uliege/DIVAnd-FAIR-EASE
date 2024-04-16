@@ -2,10 +2,17 @@ module ArgoFairEase
 
 using HTTP
 using JSON3
+using Colors
 using Contour
 using Dates
 using NCDatasets
 using OrderedCollections
+using NaNStatistics
+using PyPlot
+const plt = PyPlot
+using PyCall
+mpl = pyimport("matplotlib")
+
 
 """
     prepare_query(parameter, unit, datestart, dateend, mindepth, maxdept, minlon, maxlon, minlat, maxlat)
@@ -102,8 +109,11 @@ Convert the 2D array `field2D` to a JSON string.
 julia> field2json(lonr, latr, field[:,:,1,2], 5.:0.25:12.5)
 ```
 """
-function field2json(lonr, latr, field2D, thelevels)
+function field2json(lonr, latr, field2D, thelevels; valex=-999.)
     
+    # Replace NaN's by exclusion valueµ
+    field2D[isnan.(field2D)] .= valex
+
     # Compute the contours from the results
     contoursfield = Contour.contours(lonr, latr, field2D, thelevels)
     
@@ -123,6 +133,46 @@ function field2json(lonr, latr, field2D, thelevels)
     return JSON3.write(geojsonfield)
 end
 
+"""
+    write_field_json(field2D, Δvar; cmap=cmap, resfile, funfile)
 
+Prepare a geoJSON file containing the contour of `field2D` and a file containing the
+color function in Javascript.
+"""
+function write_field_json(lon, lat, field2D::Matrix{AbstractFloat}, Δvar::Float64; cmap=plt.cm.RdYlBu_r,
+                         resfile::AbstractString="field.js", funfile::AbstractString="colorfunction.js")
+
+    vmin = nanminimum(field2D)
+    vmax = nanmaximum(field2D)
+    @info("vmin = $vmin, vmax = $vmax")
+    values = collect(floor(vmin / Δvar ) * Δvar : Δvar : floor(vmax / Δvar ) * Δvar)
+    norm = mpl.colors.Normalize(vmin=values[1], vmax=vmax[end])
+
+    fieldjson = field2json(lon, lat, field2D, values)
+
+    # Write the contours in the geoJSON file
+    open(resfile, "w") do df
+        write(df, "var field = ")
+        write(df, fieldjson)
+    end
+    
+    # Prepare the color function
+    colorlistrgb = cmap.(norm.(values))
+    colorlisthex = [hex(RGB(thecolor[1], thecolor[2], thecolor[3])) for thecolor in colorlistrgb];
+    
+    # Write the color function (Javascript)
+    open(funfile, "w") do df
+        write(df, "function getMoreColor(d) {")
+        write(df, "return ")
+        for (vv, cc) in zip(values[1:end-1], colorlisthex[1:end-1])
+           write(df, "d < $(vv) ? '#$(cc)' :")
+        end
+        write(df, "'#$(colorlisthex[end])'; ")
+        write(df, "}")
+    end
+                
+    return nothing
+    
+end
 
 end
