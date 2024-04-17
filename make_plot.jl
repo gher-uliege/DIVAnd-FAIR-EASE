@@ -27,6 +27,7 @@ begin
 	using Contour
 	using PlutoUI
 	using DIVAnd
+	using ShortCodes
 	mpl = pyimport("matplotlib")
 end
 
@@ -57,10 +58,14 @@ end
 
 # ╔═╡ 781229f8-ccfe-41bd-9f9f-19d7bb686cda
 begin
-	yearlist = [Dates.year(datestart):Dates.year(dateend)];
+	# yearlist = [Dates.year(datestart):Dates.year(dateend)];
+	yearlist = [2001:2010, 2011:2020]
 	monthlist = [[1,2,3],[4,5,6],[7,8,9],[10,11,12]];
 	TS = DIVAnd.TimeSelectorYearListMonthList(yearlist,monthlist);
 end
+
+# ╔═╡ dbe16887-34d1-4131-98ff-3f72a91c86a1
+yearlist
 
 # ╔═╡ efb4d5f5-d801-49fa-bf06-10a36f6d1aa2
 begin
@@ -80,23 +85,22 @@ end
 # ╔═╡ eab2d052-a75e-46e8-99a6-d70798aa3515
 @bind depth2plot Select(depthr)
 
-# ╔═╡ 592ba530-b52b-45f1-96a5-7217439b076a
-depthindex = findfirst(depth2plot .== depthr)
-
 # ╔═╡ 81a21541-9b8b-43a0-9baf-80305abd05d6
 @bind months2plot Select(monthlist)
-
-# ╔═╡ c3078c5c-0c3b-42e1-85a9-c3bd28406f96
-monthindex = findfirst(months2plot == monthlist)
-
-# ╔═╡ 2a5e2fd1-ef91-4f7f-a66f-42ea00686def
-months2plot in monthlist
 
 # ╔═╡ b2836d61-716e-4d4b-b475-9f6304f33b13
 @bind year2plot Select(yearlist)
 
-# ╔═╡ d4fb4114-3289-400e-94ef-70e989f7d34f
-
+# ╔═╡ d6835083-e5c5-401f-a45f-09032a6f9432
+begin
+	depthindex = findfirst(depth2plot .== depthr)
+	monthindex = findfirst([mm == months2plot for mm in monthlist])
+	yearindex = findfirst([yy == year2plot for yy in yearlist])
+	timeindex = (yearindex-1) * length(monthlist) + monthindex
+	@info(yearindex)
+	@info("Depth index: $(depthindex)")
+	@info("Time index: $(timeindex)")
+end
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -111,6 +115,7 @@ PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 PyCall = "438e738f-606a-5dbb-bf0a-cddfbfd45ab0"
 PyPlot = "d330b81b-6aea-500a-939a-2ce795aea3ee"
+ShortCodes = "f62ebe17-55c5-4640-972f-b59c0dd11ccf"
 
 [compat]
 Contour = "~0.6.3"
@@ -121,6 +126,7 @@ NCDatasets = "~0.14.3"
 PlutoUI = "~0.7.58"
 PyCall = "~1.96.4"
 PyPlot = "~2.11.2"
+ShortCodes = "~0.3.6"
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000002
@@ -129,7 +135,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.10.2"
 manifest_format = "2.0"
-project_hash = "4cebd7745fdb33b7d2fd25561aa165d9a60f8203"
+project_hash = "0d27273763b6c0eb33d147d8fcb4d19f0113c0df"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "016833eb52ba2d6bea9fcb50ca295980e728ee24"
@@ -622,6 +628,18 @@ git-tree-sha1 = "31e996f0a15c7b280ba9f76636b3ff9e2ae58c9a"
 uuid = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 version = "0.21.4"
 
+[[deps.JSON3]]
+deps = ["Dates", "Mmap", "Parsers", "PrecompileTools", "StructTypes", "UUIDs"]
+git-tree-sha1 = "eb3edce0ed4fa32f75a0a11217433c31d56bd48b"
+uuid = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
+version = "1.14.0"
+
+    [deps.JSON3.extensions]
+    JSON3ArrowExt = ["ArrowTypes"]
+
+    [deps.JSON3.weakdeps]
+    ArrowTypes = "31f734f8-188a-4ce0-8406-c8a06bd891cd"
+
 [[deps.KLU]]
 deps = ["LinearAlgebra", "SparseArrays", "SuiteSparse_jll"]
 git-tree-sha1 = "07649c499349dad9f08dde4243a4c597064663e9"
@@ -852,6 +870,12 @@ version = "1.1.9"
 deps = ["Artifacts", "Libdl"]
 uuid = "c8ffd9c3-330d-5841-b78e-0817d7145fa1"
 version = "2.28.2+1"
+
+[[deps.Memoize]]
+deps = ["MacroTools"]
+git-tree-sha1 = "2b1dfcba103de714d31c033b5dacc2e4a12c7caa"
+uuid = "c03570c3-d221-55d1-a50c-7939bbd78826"
+version = "0.4.4"
 
 [[deps.MicrosoftMPI_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -1152,6 +1176,12 @@ version = "1.1.1"
 deps = ["Distributed", "Mmap", "Random", "Serialization"]
 uuid = "1a1011a3-84de-559e-8e89-a11a2f7dc383"
 
+[[deps.ShortCodes]]
+deps = ["Base64", "CodecZlib", "Downloads", "JSON3", "Memoize", "URIs", "UUIDs"]
+git-tree-sha1 = "5844ee60d9fd30a891d48bab77ac9e16791a0a57"
+uuid = "f62ebe17-55c5-4640-972f-b59c0dd11ccf"
+version = "0.3.6"
+
 [[deps.SimpleBufferStream]]
 git-tree-sha1 = "874e8867b33a00e784c8a7e4b60afe9e037b74e1"
 uuid = "777ac1f9-54b0-4bf8-805c-2214025038e7"
@@ -1224,6 +1254,12 @@ deps = ["ArrayInterface", "CloseOpenIntervals", "IfElse", "LayoutPointers", "Lin
 git-tree-sha1 = "b518da45c50dfab8384125ba829f1739bda41034"
 uuid = "7792a7ef-975c-4747-a70f-980b88e8d1da"
 version = "0.5.5"
+
+[[deps.StructTypes]]
+deps = ["Dates", "UUIDs"]
+git-tree-sha1 = "ca4bccb03acf9faaf4137a9abc1881ed1841aa70"
+uuid = "856f2bd8-1eba-4b0a-8007-ebc267875bd4"
+version = "1.10.0"
 
 [[deps.SuiteSparse]]
 deps = ["Libdl", "LinearAlgebra", "Serialization", "SparseArrays"]
@@ -1400,15 +1436,13 @@ version = "3.0.2+0"
 # ╠═5ae09fb8-7131-4a8c-aa42-5f4bb62d45d2
 # ╠═26c7b638-de85-485d-af77-a0dd2a177d38
 # ╠═79fb444c-d94d-46b5-be0a-eef6dc1d9a80
+# ╟─dbe16887-34d1-4131-98ff-3f72a91c86a1
 # ╠═e2eda795-67ec-4f01-93f1-48e15d7b42c6
 # ╠═781229f8-ccfe-41bd-9f9f-19d7bb686cda
 # ╠═efb4d5f5-d801-49fa-bf06-10a36f6d1aa2
 # ╠═eab2d052-a75e-46e8-99a6-d70798aa3515
-# ╠═592ba530-b52b-45f1-96a5-7217439b076a
 # ╠═81a21541-9b8b-43a0-9baf-80305abd05d6
-# ╠═c3078c5c-0c3b-42e1-85a9-c3bd28406f96
-# ╠═2a5e2fd1-ef91-4f7f-a66f-42ea00686def
 # ╠═b2836d61-716e-4d4b-b475-9f6304f33b13
-# ╠═d4fb4114-3289-400e-94ef-70e989f7d34f
+# ╠═d6835083-e5c5-401f-a45f-09032a6f9432
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002

@@ -26,8 +26,11 @@ begin
 	using PyPlot
 	const plt = PyPlot
 	using PyCall
+	using Colors
 	using PlutoUI
 	using Markdown
+	using Contour
+	using NaNStatistics
 	using InteractiveUtils
 	using HypertextLiteral
 	mpl = pyimport("matplotlib")
@@ -44,7 +47,7 @@ In this notebook we download Argo data using the Beacon API and then create grid
 
 In Pluto notebooks, all the cells are run directly, then if you modify one cell, all the cells depending on the modified one will be re-run.
 
-## Package installation
+## 📦📦 Package installation
 1. The packages will be automatically downloaded if needed.
 2. They will be installed in the notebook (✓ symbol).
 3. Their version and dependencies will be written in the notebook file (not visible in the interface).
@@ -258,103 +261,17 @@ md"""
 ### 🌍 Interactive map ([`Leaflet`](https://leafletjs.com/))
 """
 
-# ╔═╡ a2d61983-0042-405f-ada9-1024e86c1644
-@htl("""
-	<meta charset="utf-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1">
-	
-	<title>Observations in $(regionname)</title>
-	
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.8.0/dist/leaflet.css" integrity="sha512-hoalWLoI8r4UszCkZ5kL8vayOGVae1oxXe/2A4AO6J9+580uKHDO3JdHb7NzwwzK5xr/Fs0W40kiNHxM9vyTtQ==" crossorigin=""/>
-    <script src="https://unpkg.com/leaflet@1.8.0/dist/leaflet.js" integrity="sha512-BB3hKbKWOc9Ez/TAwyWxNXeoV9c1v6FIeYiBieIWkpLjauysF18NzgR1MBNBXf8/KABdlkX68nAhlwcDFLGPCQ==" crossorigin=""></script>
-      <script src="https://unpkg.com/leaflet-providers@latest/leaflet-providers.js"></script>
-
-	<style>
-		html, body {
-			height: 100%;
-			margin: 0;
-		}
-		.leaflet-container {
-			max-width: 100%;
-			max-height: 100%;
-		}
-	</style>
-
-<body>
-<div id="map" style="width: 100%; height: 400px;"></div>
-<script>
-
-	var map = L.map('map').setView([10., 0.], 6);
-	var myRenderer = L.canvas({ padding: 0.5 });
-
-	var OSM = L.tileLayer.provider('OpenStreetMap');
-	var Carto = L.tileLayer.provider('CartoDB.Positron').addTo(map);
-
-    var baseMaps = {
-      "OpenStreetMap": OSM,
-	  "Carto": Carto
-    };
-
-	var geojsonMarkerOptions = {
-		renderer: myRenderer,
-	    radius: 1.5,
-	    fillColor: "#ff7800",
-	    color: "#000",
-	    weight: 1,
-	    opacity: 1,
-	    fillOpacity: 0.8
-	};
-
-	var geojsonFeature = {
-            "type": "Feature",
-            "geometry": {
-                "type": "MultiPoint",
-	                "coordinates": $(coords)
-	            }
-	        };
-
-	var obs = L.geoJSON(geojsonFeature, {
-	    pointToLayer: function (feature, latlng) {
-	        return L.circleMarker(latlng, geojsonMarkerOptions);
-	    }
-	}).addTo(map);
-
-	var imageUrl = "https://github.com/gher-uliege/DIVAnd-FAIR-EASE/blob/main/figures/thecoast.png?raw=true"
-    //var imageUrl = "figures/thecoast.png"
-	var imageBounds = [[$(minlat), $(minlon)], [$(maxlat), $(maxlon)]];
-    //var field = L.imageOverlay(imageUrl, imageBounds, {opacity: 0.5}).addTo(map);
-
-	var bathy = L.tileLayer.wms("https://ows.emodnet-bathymetry.eu/wms", {
-	    layers: ['emodnet:mean_atlas_land', 'coastlines'],
-		format: 'image/png',
-	    transparent: true,
-	    attribution: "EMODnet Bathymetry"
-	}).addTo(map);
-
-	var southWest = new L.LatLng($(minlat), $(minlon)),
-    	northEast = new L.LatLng($(maxlat), $(maxlon)),
-    	bounds = new L.LatLngBounds(southWest, northEast)
-
-	
-	var overlayers = {
-    	"Observation locations" : obs,
-		"EMODnet bathymetry": bathy,
-    };
-
-	L.control.layers(baseMaps, overlayers, {collapsed:false}).addTo(map);
-	
-
-	map.fitBounds(bounds);
-</script>
-
-</body>
-""")
-
 # ╔═╡ 21aa2085-6c2e-41b8-97bc-e6eae39c924e
 md"""
 ## 🎨 Make plot
 ### Create figure title
 """
+
+# ╔═╡ 23eca676-7c99-458a-8999-f799ba5b0222
+begin 
+	figtitleobs = """
+		Observations: Argo $(regionname): $(parameter)"""
+end
 
 # ╔═╡ 05def578-6786-4713-af46-ac58b334f5c7
 if usecartopy
@@ -365,50 +282,6 @@ if usecartopy
 	coast = cfeature.GSHHSFeature(scale="h")
 	dataproj = ccrs.PlateCarree();
 end;
-
-# ╔═╡ 888ba762-4101-4139-88e9-8978d734f1cd
-md"""
-## DIVAnd interpolation
-"""
-
-# ╔═╡ ee28b85c-dd78-4edc-bacc-8cf0e8f1d6d5
-md"""
-### Set grid
-"""
-
-# ╔═╡ f3f219ba-b73b-460b-ac03-483bff5bf42b
-begin
-	dx, dy = 0.25, 0.25
-	lonr = minlon:dx:maxlon
-	latr = minlat:dy:maxlat
-	timerange = [datestart, dateend];
-	
-	depthr = [0.,5., 10., 15., 20., 25., 30., 40., 50., 60., 
-	    75, 85, 100, 112, 125, 135, 150, 175, 200, 225, 250, 
-	    275, 300, 350, 400, 450, 500, 550, 600, 650, 700, 750, 
-	    800, 850, 900, 950, 1000, 1050, 1100, 1150, 1200, 1250, 
-	    1300, 1350, 1400, 1450, 1500, 1600, 1750, 1850, 2000];
-	depthr = depthr[depthr .<= maxdepth];
-end
-
-# ╔═╡ 52363e92-93a4-457c-b358-42f0ac8bb0b1
-md"""
-### Time periods
-"""
-
-# ╔═╡ 706f5855-62e7-48cc-9fb3-f43af4f5c9ec
-begin
-	yearlist = [Dates.year(datestart):Dates.year(dateend)];
-	monthlist = [[1,2,3],[4,5,6],[7,8,9],[10,11,12]];
-	TS = DIVAnd.TimeSelectorYearListMonthList(yearlist,monthlist);
-end
-
-# ╔═╡ 23eca676-7c99-458a-8999-f799ba5b0222
-begin 
-	figtitleobs = """
-		Observations: Argo $(regionname): $(parameter) at $(depthr[1]) m
-		Period: $(Dates.monthname(monthlist[1][1])) - $(Dates.monthname(monthlist[1][end])) $(yearlist[1][1]) - $(yearlist[1][end])"""
-end
 
 # ╔═╡ 64055f4f-d453-4535-8cce-02a23ab99275
 if usecartopy
@@ -458,6 +331,43 @@ if usebasemap
 
 	LocalResource(joinpath(figdir, "observations.jpg"))
 
+end
+
+# ╔═╡ 888ba762-4101-4139-88e9-8978d734f1cd
+md"""
+## DIVAnd interpolation
+"""
+
+# ╔═╡ ee28b85c-dd78-4edc-bacc-8cf0e8f1d6d5
+md"""
+### Set grid
+"""
+
+# ╔═╡ f3f219ba-b73b-460b-ac03-483bff5bf42b
+begin
+	dx, dy = 0.25, 0.25
+	lonr = minlon:dx:maxlon
+	latr = minlat:dy:maxlat
+	timerange = [datestart, dateend];
+	
+	depthr = [0.,5., 10., 15., 20., 25., 30., 40., 50., 60., 
+	    75, 85, 100, 112, 125, 135, 150, 175, 200, 225, 250, 
+	    275, 300, 350, 400, 450, 500, 550, 600, 650, 700, 750, 
+	    800, 850, 900, 950, 1000, 1050, 1100, 1150, 1200, 1250, 
+	    1300, 1350, 1400, 1450, 1500, 1600, 1750, 1850, 2000];
+	depthr = depthr[depthr .<= maxdepth];
+end
+
+# ╔═╡ 52363e92-93a4-457c-b358-42f0ac8bb0b1
+md"""
+### Time periods
+"""
+
+# ╔═╡ 706f5855-62e7-48cc-9fb3-f43af4f5c9ec
+begin
+	yearlist = [Dates.year(datestart):Dates.year(dateend)];
+	monthlist = [[1,2,3],[4,5,6],[7,8,9],[10,11,12]];
+	TS = DIVAnd.TimeSelectorYearListMonthList(yearlist,monthlist);
 end
 
 # ╔═╡ 38518967-9544-4ab3-b881-3962de5e368c
@@ -558,15 +468,54 @@ end
 # ╔═╡ 8c4e4476-b1a1-4291-8173-149824928339
 lon, lat, depth, time, field = get_results(outputfile, parameter);
 
+# ╔═╡ 98cca97e-b391-45f7-96a7-19ee350f4240
+md"""
+### Find time and depth indices for the plot
+#### Select depth
+"""
+
+# ╔═╡ ac79bce7-9d1a-4925-9f6c-e0e163e42e43
+@bind depth2plot Select(depthr)
+
+# ╔═╡ eaff1b8d-5acf-410f-9800-5c67484260a1
+md"""
+#### Select month period
+"""
+
+# ╔═╡ 3873ec64-95e9-434d-b224-a53b7b2d989c
+@bind months2plot Select(monthlist)
+
+# ╔═╡ 56eb6cee-ff59-4afb-98ba-844f6e325d15
+md"""
+#### Select year period
+"""
+
+# ╔═╡ 7e2d01ee-46f7-4478-b0d7-3f1daeb796f5
+@bind year2plot Select(yearlist)
+
+# ╔═╡ b0361636-b96f-448a-9449-2774d7a1e86f
+begin
+	depthindex = findfirst(depth2plot .== depthr)
+	monthindex = findfirst([mm == months2plot for mm in monthlist])
+	yearindex = findfirst([yy == year2plot for yy in yearlist])
+	timeindex = (yearindex-1) * length(monthlist) + monthindex
+	@info("Depth index: $(depthindex)")
+	@info("Time index: $(timeindex)")
+end
+
 # ╔═╡ d8ea13f6-34b2-4f9e-9d33-f02cffdd9f56
 md"""
 ### 🎨 Create the plot
+The figure title is set according to the depth and the time period
 """
+
+# ╔═╡ 6a3a230c-333b-4828-99b5-6db74df0bd6b
+field2D = @view field[:,:,depthindex,timeindex];
 
 # ╔═╡ 05ae76b2-f489-4264-bd42-9314a8aad0a9
 figtitle = """
 DIVAnd analysis: Argo $(regionname): $(parameter) at $(depthr[1]) m
-Period: $(Dates.monthname(monthlist[1][1])) - $(Dates.monthname(monthlist[1][end])) $(yearlist[1][1]) - $(yearlist[1][end])"""
+Period: $(Dates.monthname(monthlist[monthindex][1])) - $(Dates.monthname(monthlist[monthindex][end])) $(yearlist[yearindex][1]) - $(yearlist[yearindex][end])"""
 
 # ╔═╡ 3fe16edc-93b1-48a0-8d3c-5e56e2c13b2b
 if usecartopy
@@ -574,7 +523,7 @@ if usecartopy
 	fig3 = plt.figure(figsize = (12, 8))
 	ax3 = plt.subplot(111, projection=ccrs.PlateCarree())
 	ax3.set_extent([minlon, maxlon, minlat, maxlat])
-	pcm3 = ax3.pcolormesh(lon, lat, field[:,:,1,1]', cmap=plt.cm.RdYlBu_r)
+	pcm3 = ax3.pcolormesh(lon, lat, field2D', cmap=plt.cm.RdYlBu_r)
 	gl3 = ax3.gridlines(crs=ccrs.PlateCarree(), draw_labels=true,
 	                  linewidth=.5, color="gray", alpha=0.5, linestyle="--", zorder=3)
 	ax3.add_feature(coast, lw=.5, color=".85", zorder=4)
@@ -613,10 +562,204 @@ if usebasemap
 	LocalResource(joinpath(figdir, "Argo_interpolation.jpg"))
 end
 
+# ╔═╡ 0674379d-a171-4511-988e-4c917b50974e
+md"""
+## Results on a map
+The 2D field is converted to geoJSON so it can be ingested by Leaflet.
+"""
+
+# ╔═╡ bf33dcb0-cae6-4835-80bf-d649904b7a84
+function field2json(lonr, latr, field2D, thelevels; valex=-999.)
+    
+    # Replace NaN's by exclusion valueµ
+    field2D[isnan.(field2D)] .= valex
+
+    # Compute the contours from the results
+    contoursfield = Contour.contours(lonr, latr, field2D, thelevels)
+    
+    # Create the geoJSON starting from a dictionary
+    geojsonfield = Dict(
+    "type" => "FeatureCollection",
+    "features" => [
+        Dict(
+            "type" => "Feature",
+            "geometry" => Dict(
+                "type" => "MultiPolygon",
+                "coordinates" => [[[[lon, lat] for (lon, lat) in zip(coordinates(line)[1], coordinates(line)[2])] for line in lines(cl)]]),
+            "properties" => Dict("field" => cl.level)
+        ) for cl in levels(contoursfield)]
+    )
+    
+    return JSON3.write(geojsonfield)
+end
+
+# ╔═╡ e6577f5a-00ba-4ea8-bce7-c952b7abc500
+function write_field_json(lon, lat, field2D::Matrix{AbstractFloat}, Δvar::Float64; cmap=plt.cm.RdYlBu_r,
+                         resfile::AbstractString="field.js", funfile::AbstractString="colorfunction.js")
+
+    vmin = nanminimum(field2D)
+    vmax = nanmaximum(field2D)
+    @info("vmin = $vmin, vmax = $vmax")
+    values = collect(floor(vmin / Δvar ) * Δvar : Δvar : floor(vmax / Δvar ) * Δvar)
+    norm = mpl.colors.Normalize(vmin=values[1], vmax=vmax[end])
+
+    fieldjson = field2json(lon, lat, field2D, values)
+
+    # Write the contours in the geoJSON file
+    fieldjson = "var field = " * fieldjson
+    
+    # Prepare the color function
+    colorlistrgb = cmap.(norm.(values))
+    colorlisthex = [hex(RGB(thecolor[1], thecolor[2], thecolor[3])) for thecolor in colorlistrgb];
+    
+    # Write the color function (Javascript)
+    thestring = "function getMoreColor(d) {return "
+	for (vv, cc) in zip(values[1:end-1], colorlisthex[1:end-1])
+		thestring *= "d < $(vv) ? '#$(cc)' : "
+	end
+	thestring *= "'#$(colorlisthex[end])'};"
+	return fieldjson, thestring
+    
+end;
+
+# ╔═╡ 26dddf63-91a3-4520-9f2c-9a8c654902d5
+fieldjson, colorfunction = write_field_json(lon, lat, field[:,:,depthindex,timeindex], 0.5);
+
+# ╔═╡ b295953a-3938-46fb-b61f-4026e324af4a
+"""$(colorfunction)"""
+
+# ╔═╡ 782561ba-18b8-4e75-a8c9-8d7065a12d9e
+typeof(fieldjson)
+
+# ╔═╡ 454ffcef-ea5e-4b1c-8ac7-c6bd5e20290b
+fieldjson2 = replace(fieldjson, "\"" => "'")
+
+# ╔═╡ a2d61983-0042-405f-ada9-1024e86c1644
+@htl("""
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	
+	<title>Observations in $(regionname)</title>
+	
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.8.0/dist/leaflet.css" integrity="sha512-hoalWLoI8r4UszCkZ5kL8vayOGVae1oxXe/2A4AO6J9+580uKHDO3JdHb7NzwwzK5xr/Fs0W40kiNHxM9vyTtQ==" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.8.0/dist/leaflet.js" integrity="sha512-BB3hKbKWOc9Ez/TAwyWxNXeoV9c1v6FIeYiBieIWkpLjauysF18NzgR1MBNBXf8/KABdlkX68nAhlwcDFLGPCQ==" crossorigin=""></script>
+      <script src="https://unpkg.com/leaflet-providers@latest/leaflet-providers.js"></script>
+
+	<style>
+		html, body {
+			height: 100%;
+			margin: 0;
+		}
+		.leaflet-container {
+			max-width: 100%;
+			max-height: 100%;
+		}
+	</style>
+
+<body>
+<div id="map" style="width: 100%; height: 400px;"></div>
+<script type="text/javascript" src="./field.js"></script>
+<script type="text/javascript" src="./colorfunction.js"></script>
+<script>
+
+	var map = L.map('map').setView([43., 34.], 6);
+	var myRenderer = L.canvas({ padding: 0.5 });
+
+	var OSM = L.tileLayer.provider('OpenStreetMap');
+	var Carto = L.tileLayer.provider('CartoDB.Positron').addTo(map);
+
+    var baseMaps = {
+      "OpenStreetMap": OSM,
+	  "Carto": Carto
+    };
+
+	var geojsonMarkerOptions = {
+		renderer: myRenderer,
+	    radius: 1.5,
+	    fillColor: "#ff7800",
+	    color: "#000",
+	    weight: 1,
+	    opacity: 1,
+	    fillOpacity: 0.8
+	};
+
+	var geojsonFeature = {
+            "type": "Feature",
+            "geometry": {
+                "type": "MultiPoint",
+	                "coordinates": $(coords)
+	            }
+	        };
+
+	var obs = L.geoJSON(geojsonFeature, {
+	    pointToLayer: function (feature, latlng) {
+	        return L.circleMarker(latlng, geojsonMarkerOptions);
+	    }
+	}).addTo(map);
+
+	var bathy = L.tileLayer.wms("https://ows.emodnet-bathymetry.eu/wms", {
+	    layers: ['emodnet:mean_atlas_land', 'coastlines'],
+		format: 'image/png',
+	    transparent: true,
+	    attribution: "EMODnet Bathymetry"
+	}).addTo(map);
+
+	//$(colorfunction)
+	
+	function getMoreColor(d) {return d < 5.0 ? '#313695' : d < 5.5 ? '#4065AC' : d < 6.0 ? '#5E93C3' : d < 6.5 ? '#85BBD9' : d < 7.0 ? '#AEDBEA' : d < 7.5 ? '#D8EFF6' : d < 8.0 ? '#F3FBD4' : d < 8.5 ? '#FFF2AC' : d < 9.0 ? '#FED889' : d < 9.5 ? '#FDB164' : d < 10.0 ? '#F67F4B' : d < 10.5 ? '#E65036' : '#CA2427'};
+
+	function fieldStyle(feature) {
+		return {
+		fillColor: getMoreColor(feature.properties.field),
+		color: getMoreColor(feature.properties.field),
+		weight: 1,
+		opacity: 0.4,
+		fillOpacity: 0.7
+		};
+	}
+
+	$(fieldjson2)
+	
+    var divafield = new L.GeoJSON(field, {style: fieldStyle}).addTo(map);
+
+	var southWest = new L.LatLng($(minlat), $(minlon)),
+    	northEast = new L.LatLng($(maxlat), $(maxlon)),
+    	bounds = new L.LatLngBounds(southWest, northEast)
+
+	map.fitBounds(bounds);
+
+	var overlayers = {
+    	"Observation locations" : obs,
+		"EMODnet bathymetry": bathy,
+		//"DIVAnd interpolation": divafield
+    };
+
+	L.control.layers(baseMaps, overlayers, {collapsed:false}).addTo(map);
+	
+</script>
+
+</body>
+""")
+
+# ╔═╡ d7f1f185-eb6c-43db-8785-11c8fbde3d47
+open("mytest01.js", "w") do df1
+	write(df1, fieldjson2)
+end
+
+# ╔═╡ 90220219-c3ed-4018-abf5-a55ef24e85a6
+open("mytest02.js", "w") do df2
+	write(df2, colorfunction)
+end
+
+# ╔═╡ 46efeeb6-1bd9-498f-a1e6-d8feb9d7a38a
+colorfunction
+
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
+Colors = "5ae59095-9a9b-59fe-a467-6f913c188581"
 Conda = "8f4d0f93-b110-5947-807f-2305c1781a2d"
+Contour = "d38c429a-6771-53c6-b99e-75d170b6e991"
 DIVAnd = "efc8151c-67de-5a8f-9a35-d8f54746ae9d"
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 HTTP = "cd3eb016-35fb-5094-929b-558a96fad6f3"
@@ -626,6 +769,7 @@ JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
 Markdown = "d6f4376e-aef5-505a-96c1-9c027394607a"
 NCDatasets = "85f8d34a-cbdd-5861-8df4-14fed0d494ab"
+NaNStatistics = "b946abbf-3ea7-4610-9019-9858bfdeaf2d"
 OrderedCollections = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
@@ -633,13 +777,16 @@ PyCall = "438e738f-606a-5dbb-bf0a-cddfbfd45ab0"
 PyPlot = "d330b81b-6aea-500a-939a-2ce795aea3ee"
 
 [compat]
+Colors = "~0.12.10"
 Conda = "~1.10.0"
+Contour = "~0.6.3"
 DIVAnd = "~2.7.11"
 HTTP = "~1.10.5"
 HypertextLiteral = "~0.9.5"
 JSON = "~0.21.4"
 JSON3 = "~1.14.0"
 NCDatasets = "~0.14.3"
+NaNStatistics = "~0.6.32"
 OrderedCollections = "~1.6.3"
 PlutoUI = "~0.7.58"
 PyCall = "~1.96.4"
@@ -652,7 +799,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.10.2"
 manifest_format = "2.0"
-project_hash = "752f3cba5551d0cac3c12afbc608dc870e2435f3"
+project_hash = "1fc571216fe4e71973bd5ca7bf1aafe995b7d5b0"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "016833eb52ba2d6bea9fcb50ca295980e728ee24"
@@ -888,6 +1035,11 @@ version = "1.5.5"
     [deps.ConstructionBase.weakdeps]
     IntervalSets = "8197267c-284f-5f27-9208-e0e47529a953"
     StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+
+[[deps.Contour]]
+git-tree-sha1 = "439e35b0b36e2e5881738abc8857bd92ad6ff9a8"
+uuid = "d38c429a-6771-53c6-b99e-75d170b6e991"
+version = "0.6.3"
 
 [[deps.CpuId]]
 deps = ["Markdown"]
@@ -1407,6 +1559,12 @@ deps = ["CFTime", "CommonDataModel", "DataStructures", "Dates", "DiskArrays", "N
 git-tree-sha1 = "d40d24d12f710c39d3a66be99c567ce0032f28a7"
 uuid = "85f8d34a-cbdd-5861-8df4-14fed0d494ab"
 version = "0.14.3"
+
+[[deps.NaNStatistics]]
+deps = ["IfElse", "LoopVectorization", "PrecompileTools", "Static"]
+git-tree-sha1 = "5ee772edf4bfb65eb50068d3682fae47552de81c"
+uuid = "b946abbf-3ea7-4610-9019-9858bfdeaf2d"
+version = "0.6.32"
 
 [[deps.NetCDF_jll]]
 deps = ["Artifacts", "Blosc_jll", "Bzip2_jll", "HDF5_jll", "JLLWrappers", "LibCURL_jll", "Libdl", "OpenMPI_jll", "XML2_jll", "Zlib_jll", "Zstd_jll", "libzip_jll"]
@@ -1937,7 +2095,8 @@ version = "17.4.0+2"
 # ╟─b64bc67d-ab2e-47a3-9f5f-0092f7917970
 # ╠═7bac5550-6079-475d-8432-4913087a9a4b
 # ╟─37ad43bd-432d-49f7-8d48-27e9831a3111
-# ╟─a2d61983-0042-405f-ada9-1024e86c1644
+# ╠═a2d61983-0042-405f-ada9-1024e86c1644
+# ╠═b295953a-3938-46fb-b61f-4026e324af4a
 # ╟─21aa2085-6c2e-41b8-97bc-e6eae39c924e
 # ╠═23eca676-7c99-458a-8999-f799ba5b0222
 # ╠═b20b0a42-2f04-4abc-8b37-278d62a42e32
@@ -1963,9 +2122,26 @@ version = "17.4.0+2"
 # ╟─d708b881-8678-40cc-8a07-0513a41159c6
 # ╟─226d77a9-c50d-4d4c-a906-86631dd60b50
 # ╠═8c4e4476-b1a1-4291-8173-149824928339
+# ╟─98cca97e-b391-45f7-96a7-19ee350f4240
+# ╟─ac79bce7-9d1a-4925-9f6c-e0e163e42e43
+# ╟─eaff1b8d-5acf-410f-9800-5c67484260a1
+# ╟─3873ec64-95e9-434d-b224-a53b7b2d989c
+# ╟─56eb6cee-ff59-4afb-98ba-844f6e325d15
+# ╟─7e2d01ee-46f7-4478-b0d7-3f1daeb796f5
+# ╠═b0361636-b96f-448a-9449-2774d7a1e86f
 # ╟─d8ea13f6-34b2-4f9e-9d33-f02cffdd9f56
-# ╠═05ae76b2-f489-4264-bd42-9314a8aad0a9
+# ╠═6a3a230c-333b-4828-99b5-6db74df0bd6b
+# ╟─05ae76b2-f489-4264-bd42-9314a8aad0a9
 # ╠═3fe16edc-93b1-48a0-8d3c-5e56e2c13b2b
 # ╠═f72bd266-4559-4895-b753-ced821ffc44e
+# ╠═782561ba-18b8-4e75-a8c9-8d7065a12d9e
+# ╟─0674379d-a171-4511-988e-4c917b50974e
+# ╠═bf33dcb0-cae6-4835-80bf-d649904b7a84
+# ╠═e6577f5a-00ba-4ea8-bce7-c952b7abc500
+# ╠═26dddf63-91a3-4520-9f2c-9a8c654902d5
+# ╠═454ffcef-ea5e-4b1c-8ac7-c6bd5e20290b
+# ╠═d7f1f185-eb6c-43db-8785-11c8fbde3d47
+# ╠═90220219-c3ed-4018-abf5-a55ef24e85a6
+# ╠═46efeeb6-1bd9-498f-a1e6-d8feb9d7a38a
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
