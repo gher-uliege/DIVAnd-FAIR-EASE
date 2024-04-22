@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.41
+# v0.19.40
 
 using Markdown
 using InteractiveUtils
@@ -102,6 +102,11 @@ if usebasemap
 end;
 
 # ╔═╡ de7029a9-a5a5-4cea-82e1-43f596c2b617
+"""
+	prepare_query(parameter, unit, datestart, dateend, mindepth, maxdept, minlon, maxlon, minlat, maxlat)
+
+Prepare the JSON query that will be passed to the API.
+"""
 function prepare_query(parameter::String, unit::String, datestart::Date, dateend::Date, mindepth::Float64, maxdepth::Float64, minlon::Float64, maxlon::Float64, minlat::Float64, maxlat::Float64; 
 dateref::Date=Dates.Date(1950, 1, 1))
 
@@ -115,6 +120,7 @@ dateref::Date=Dates.Date(1950, 1, 1))
     OrderedDict("data_parameter" => parameter,
         "unit"=> unit,
         "skip_fill_values" => true,
+		"alias" => "OBSERVATIONS",
         "alias"=> "sea_water_temperature"),
     OrderedDict("data_parameter"=> "time",
         "unit"=> "days since 1950-01-01 00:00:00 UTC",
@@ -143,6 +149,25 @@ dateref::Date=Dates.Date(1950, 1, 1))
     body = JSON3.write(paramdict)
     return body::String
 end
+
+# ╔═╡ b9c9921b-b41a-480e-b0ac-fca6e652dc22
+md"""
+### Domain and depth of interest
+We create a dictionary with different regions
+"""
+
+# ╔═╡ 3de1e314-10a2-4604-9c2d-dda5e95e01b4
+domaininfo = Dict("Arctic region" => [-44.25, 70.0, 56.5, 83.0],
+				  "North_East_Atlantic" => [-42.0, -0.1, 24.9, 48.0], 
+			      "Baltic_Sea" => [9.4, 30.9, 53.0, 65.9],
+				  "Black_Sea" => [26.5, 41.95, 40.0, 47.95],
+				  "Mediterranean_Sea" => [-7.0, 36.375, 30.0, 45.875],
+				  "North_Sea" => [-5.4, 13.0, 47.9, 62.0],
+				  "Canary_Islands" => [-20., -9., 25., 31.5]
+				  );
+
+# ╔═╡ 7d195f6e-5308-40b3-9547-6614e96c006a
+@bind regionname Select(collect(keys(domaininfo)))
 
 # ╔═╡ e7ae81f3-970e-4d3f-936f-3073b1063e5c
 md"""
@@ -180,21 +205,6 @@ begin
 	datestart = Dates.Date(2000, 1, 1)
 	dateend = Dates.Date(2021, 12, 31)
 end
-
-# ╔═╡ b9c9921b-b41a-480e-b0ac-fca6e652dc22
-md"""
-### Domain and depth of interest
-We create a dictionary with different regions
-"""
-
-# ╔═╡ 3de1e314-10a2-4604-9c2d-dda5e95e01b4
-domaininfo = Dict("Black_Sea" => [25.975, 43.7, 39.8, 48.32],
-				  "Baltic_Sea" => [9., 36.5, 53., 65.],
-				  "Canary_Islands" => [-20., -9., 25., 31.5]
-				  )
-
-# ╔═╡ 7d195f6e-5308-40b3-9547-6614e96c006a
-@bind regionname Select(collect(keys(domaininfo)))
 
 # ╔═╡ 775ce187-9ce5-4e75-aab8-b2153e7a5c29
 begin
@@ -282,6 +292,9 @@ if usecartopy
 	coast = cfeature.GSHHSFeature(scale="h")
 	dataproj = ccrs.PlateCarree();
 end;
+
+# ╔═╡ c72fefc0-72aa-4642-bfc4-ef851cf2666b
+extrema(obsval)
 
 # ╔═╡ 64055f4f-d453-4535-8cce-02a23ab99275
 if usecartopy
@@ -514,7 +527,7 @@ field2D = @view field[:,:,depthindex,timeindex];
 
 # ╔═╡ 05ae76b2-f489-4264-bd42-9314a8aad0a9
 figtitle = """
-DIVAnd analysis: Argo $(regionname): $(parameter) at $(depthr[1]) m
+DIVAnd analysis: Argo $(regionname): $(parameter) at $(depthr[depthindex]) m
 Period: $(Dates.monthname(monthlist[monthindex][1])) - $(Dates.monthname(monthlist[monthindex][end])) $(yearlist[yearindex][1]) - $(yearlist[yearindex][end])"""
 
 # ╔═╡ 3fe16edc-93b1-48a0-8d3c-5e56e2c13b2b
@@ -569,6 +582,9 @@ The 2D field is converted to geoJSON so it can be ingested by Leaflet.
 """
 
 # ╔═╡ bf33dcb0-cae6-4835-80bf-d649904b7a84
+"""
+	field2json(lonr, latr, field2D, thelevels)
+"""
 function field2json(lonr, latr, field2D, thelevels; valex=-999.)
     
     # Replace NaN's by exclusion valueµ
@@ -590,12 +606,36 @@ function field2json(lonr, latr, field2D, thelevels; valex=-999.)
         ) for cl in levels(contoursfield)]
     )
     
+    return JSON3.write(geojsonfield, allow_inf=false)
+end
+
+# ╔═╡ 5258b923-3346-4ecc-aabc-da11e3fa6ae9
+"""
+	field2jsonlinestring(lonr, latr, field2D, thelevels)
+"""
+function field2jsonlinestring(lonr, latr, field2D, thelevels; valex=-999.)
+    
+    # Replace NaN's by exclusion valueµ
+    field2D[isnan.(field2D)] .= valex
+
+    # Compute the contours from the results
+    contoursfield = Contour.contours(lonr, latr, field2D, thelevels)
+    
+    # Create the geoJSON starting from a dictionary
+    geojsonfield = [
+        Dict(
+            "type" => "Feature",
+            "geometry" => Dict(
+                "type" => "MultiLineString",
+                "coordinates" => [[[lon, lat] for (lon, lat) in zip(coordinates(line)[1], coordinates(line)[2])] for line in lines(cl)]),
+            "properties" => Dict("field" => cl.level)
+        ) for cl in levels(contoursfield)]
+    
     return JSON3.write(geojsonfield)
 end
 
 # ╔═╡ e6577f5a-00ba-4ea8-bce7-c952b7abc500
-function write_field_json(lon, lat, field2D::Matrix{AbstractFloat}, Δvar::Float64; cmap=plt.cm.RdYlBu_r,
-                         resfile::AbstractString="field.js", funfile::AbstractString="colorfunction.js")
+function write_field_json(lon, lat, field2D::Matrix{AbstractFloat}, Δvar::Float64; cmap=plt.cm.RdYlBu_r, resfile::AbstractString="./field.js", funfile::AbstractString="./colorfunction.js")
 
     vmin = nanminimum(field2D)
     vmax = nanmaximum(field2D)
@@ -603,10 +643,10 @@ function write_field_json(lon, lat, field2D::Matrix{AbstractFloat}, Δvar::Float
     values = collect(floor(vmin / Δvar ) * Δvar : Δvar : floor(vmax / Δvar ) * Δvar)
     norm = mpl.colors.Normalize(vmin=values[1], vmax=vmax[end])
 
-    fieldjson = field2json(lon, lat, field2D, values)
+    fieldjson = field2jsonlinestring(lon, lat, field2D, values)
 
     # Write the contours in the geoJSON file
-    fieldjson = "var field = " * fieldjson
+    #fieldjson = "var field = " * fieldjson
     
     # Prepare the color function
     colorlistrgb = cmap.(norm.(values))
@@ -623,10 +663,10 @@ function write_field_json(lon, lat, field2D::Matrix{AbstractFloat}, Δvar::Float
 end;
 
 # ╔═╡ 26dddf63-91a3-4520-9f2c-9a8c654902d5
-fieldjson, colorfunction = write_field_json(lon, lat, field[:,:,depthindex,timeindex], 0.5);
+fieldjson, colorfunction = write_field_json(lon, lat, field[:,:,depthindex,timeindex], 0.02);
 
 # ╔═╡ b295953a-3938-46fb-b61f-4026e324af4a
-"""$(colorfunction)"""
+fieldjson
 
 # ╔═╡ 782561ba-18b8-4e75-a8c9-8d7065a12d9e
 typeof(fieldjson)
@@ -658,8 +698,7 @@ fieldjson2 = replace(fieldjson, "\"" => "'")
 
 <body>
 <div id="map" style="width: 100%; height: 400px;"></div>
-<script type="text/javascript" src="./field.js"></script>
-<script type="text/javascript" src="./colorfunction.js"></script>
+
 <script>
 
 	var map = L.map('map').setView([43., 34.], 6);
@@ -704,23 +743,20 @@ fieldjson2 = replace(fieldjson, "\"" => "'")
 	    attribution: "EMODnet Bathymetry"
 	}).addTo(map);
 
-	//$(colorfunction)
-	
-	function getMoreColor(d) {return d < 5.0 ? '#313695' : d < 5.5 ? '#4065AC' : d < 6.0 ? '#5E93C3' : d < 6.5 ? '#85BBD9' : d < 7.0 ? '#AEDBEA' : d < 7.5 ? '#D8EFF6' : d < 8.0 ? '#F3FBD4' : d < 8.5 ? '#FFF2AC' : d < 9.0 ? '#FED889' : d < 9.5 ? '#FDB164' : d < 10.0 ? '#F67F4B' : d < 10.5 ? '#E65036' : '#CA2427'};
-
 	function fieldStyle(feature) {
 		return {
-		fillColor: getMoreColor(feature.properties.field),
-		color: getMoreColor(feature.properties.field),
-		weight: 1,
-		opacity: 0.4,
-		fillOpacity: 0.7
+			fillColor: getMoreColor(feature.properties.field),
+			color: getMoreColor(feature.properties.field),
+			weight: 1,
+			opacity: 1,
+			fillOpacity: 0.7
 		};
 	}
 
-	$(fieldjson2)
-	
-    var divafield = new L.GeoJSON(field, {style: fieldStyle}).addTo(map);
+	// Define function that defines the colors
+	$(colorfunction)
+	var field = $(fieldjson2)
+	var divafield = new L.GeoJSON(field, {style: fieldStyle}).addTo(map);
 
 	var southWest = new L.LatLng($(minlat), $(minlon)),
     	northEast = new L.LatLng($(maxlat), $(maxlon)),
@@ -741,18 +777,15 @@ fieldjson2 = replace(fieldjson, "\"" => "'")
 </body>
 """)
 
-# ╔═╡ d7f1f185-eb6c-43db-8785-11c8fbde3d47
-open("mytest01.js", "w") do df1
-	write(df1, fieldjson2)
+# ╔═╡ ccdba1fe-582e-4962-9046-1f7e6a8e1834
+begin 
+	open("thefunction.js", "w") do ds
+		write(ds, colorfunction)
+	end
+	open("thefield.js", "w") do ds
+		write(ds, fieldjson2)
+	end
 end
-
-# ╔═╡ 90220219-c3ed-4018-abf5-a55ef24e85a6
-open("mytest02.js", "w") do df2
-	write(df2, colorfunction)
-end
-
-# ╔═╡ 46efeeb6-1bd9-498f-a1e6-d8feb9d7a38a
-colorfunction
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -2076,6 +2109,9 @@ version = "17.4.0+2"
 # ╟─31979a73-1b7f-4e84-9a18-ce8fd808d655
 # ╟─2d812c57-40f6-499b-972f-69be172d1365
 # ╟─de7029a9-a5a5-4cea-82e1-43f596c2b617
+# ╟─b9c9921b-b41a-480e-b0ac-fca6e652dc22
+# ╠═3de1e314-10a2-4604-9c2d-dda5e95e01b4
+# ╟─7d195f6e-5308-40b3-9547-6614e96c006a
 # ╟─e7ae81f3-970e-4d3f-936f-3073b1063e5c
 # ╟─e57790e8-35e9-4920-b24b-0b1fe07f42ce
 # ╟─9d3aa9d8-ab25-48b3-aede-428c9d960815
@@ -2083,9 +2119,6 @@ version = "17.4.0+2"
 # ╠═9b9716d9-d363-4e3c-be27-98ddcf9600e6
 # ╟─5915e937-63ae-4ebb-99ce-01bfa9b40b63
 # ╠═1803fa0b-45a4-443a-80d8-054537137f67
-# ╟─b9c9921b-b41a-480e-b0ac-fca6e652dc22
-# ╠═3de1e314-10a2-4604-9c2d-dda5e95e01b4
-# ╠═7d195f6e-5308-40b3-9547-6614e96c006a
 # ╠═775ce187-9ce5-4e75-aab8-b2153e7a5c29
 # ╟─0020634a-d792-4ace-bd74-ab565dfaa86d
 # ╠═7e741d55-ea1f-449e-939e-036259742653
@@ -2101,6 +2134,7 @@ version = "17.4.0+2"
 # ╠═23eca676-7c99-458a-8999-f799ba5b0222
 # ╠═b20b0a42-2f04-4abc-8b37-278d62a42e32
 # ╠═05def578-6786-4713-af46-ac58b334f5c7
+# ╠═c72fefc0-72aa-4642-bfc4-ef851cf2666b
 # ╠═64055f4f-d453-4535-8cce-02a23ab99275
 # ╠═7b97d3ad-97aa-46bf-8141-15ce7c077863
 # ╟─888ba762-4101-4139-88e9-8978d734f1cd
@@ -2131,17 +2165,16 @@ version = "17.4.0+2"
 # ╠═b0361636-b96f-448a-9449-2774d7a1e86f
 # ╟─d8ea13f6-34b2-4f9e-9d33-f02cffdd9f56
 # ╠═6a3a230c-333b-4828-99b5-6db74df0bd6b
-# ╟─05ae76b2-f489-4264-bd42-9314a8aad0a9
+# ╠═05ae76b2-f489-4264-bd42-9314a8aad0a9
 # ╠═3fe16edc-93b1-48a0-8d3c-5e56e2c13b2b
 # ╠═f72bd266-4559-4895-b753-ced821ffc44e
 # ╠═782561ba-18b8-4e75-a8c9-8d7065a12d9e
 # ╟─0674379d-a171-4511-988e-4c917b50974e
 # ╠═bf33dcb0-cae6-4835-80bf-d649904b7a84
+# ╠═5258b923-3346-4ecc-aabc-da11e3fa6ae9
 # ╠═e6577f5a-00ba-4ea8-bce7-c952b7abc500
 # ╠═26dddf63-91a3-4520-9f2c-9a8c654902d5
 # ╠═454ffcef-ea5e-4b1c-8ac7-c6bd5e20290b
-# ╠═d7f1f185-eb6c-43db-8785-11c8fbde3d47
-# ╠═90220219-c3ed-4018-abf5-a55ef24e85a6
-# ╠═46efeeb6-1bd9-498f-a1e6-d8feb9d7a38a
+# ╠═ccdba1fe-582e-4962-9046-1f7e6a8e1834
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002

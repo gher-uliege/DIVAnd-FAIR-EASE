@@ -140,7 +140,7 @@ Prepare a geoJSON file containing the contour of `field2D` and a file containing
 color function in Javascript.
 """
 function write_field_json(lon, lat, field2D::Matrix{AbstractFloat}, Δvar::Float64; cmap=plt.cm.RdYlBu_r,
-                         resfile::AbstractString="field.js", funfile::AbstractString="colorfunction.js")
+                         resfile::AbstractString="./field.js", funfile::AbstractString="./colorfunction.js")
 
     vmin = nanminimum(field2D)
     vmax = nanmaximum(field2D)
