@@ -69,13 +69,13 @@ end
 
 Read the netCDF containing the observations and obtained with the API
 """
-function read_netcdf(datafile::AbstractString)
+function read_netcdf(datafile::AbstractString, varname::AbstractString)
     NCDataset(datafile, "r") do df
         lon = df["LONGITUDE"][:] 
         lat = df["LATITUDE"][:] 
         depth = df["DEPTH"][:]
         time = df["TEMPORAL"][:]
-        field = df["sea_water_temperature"][:];
+        field = df[varname][:];
         return lon::Vector{Float64}, lat::Vector{Float64}, depth::Vector{Float64}, 
             time::Vector{Dates.DateTime}, field::Vector{Float64}
     end

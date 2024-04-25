@@ -70,9 +70,9 @@ We create separate directories for the data, the results and the plots.
 
 # ╔═╡ be148eac-bbba-4929-a5ca-a7735c9b77a9
 begin
-	datadir = "./data/"
-	outputdir = "./output/"
-	figdir = "./figures/"
+	datadir = "../data/"
+	outputdir = "../output/"
+	figdir = "../figures/"
 	mkpath.([datadir, outputdir, figdir]);
 end
 
@@ -293,9 +293,6 @@ if usecartopy
 	dataproj = ccrs.PlateCarree();
 end;
 
-# ╔═╡ c72fefc0-72aa-4642-bfc4-ef851cf2666b
-extrema(obsval)
-
 # ╔═╡ 64055f4f-d453-4535-8cce-02a23ab99275
 if usecartopy
 
@@ -420,6 +417,11 @@ md"""
 """
 
 # ╔═╡ 4cb3bb80-2b61-49df-9be5-71d92b56c367
+"""
+	makemap(timeindex,sel,fit,erri)
+
+Create a map for the period and variable of interest
+"""
 function makemap(timeindex,sel,fit,erri)
     tmp = copy(fit)
     nx,ny,nz = size(tmp)
@@ -635,6 +637,11 @@ function field2jsonlinestring(lonr, latr, field2D, thelevels; valex=-999.)
 end
 
 # ╔═╡ e6577f5a-00ba-4ea8-bce7-c952b7abc500
+"""
+	function write_field_json(lon, lat, field2D, Δvar)
+
+Create a geoJSON object that stored the results (contours)
+"""
 function write_field_json(lon, lat, field2D::Matrix{AbstractFloat}, Δvar::Float64; cmap=plt.cm.RdYlBu_r, resfile::AbstractString="./field.js", funfile::AbstractString="./colorfunction.js")
 
     vmin = nanminimum(field2D)
@@ -664,9 +671,6 @@ end;
 
 # ╔═╡ 26dddf63-91a3-4520-9f2c-9a8c654902d5
 fieldjson, colorfunction = write_field_json(lon, lat, field[:,:,depthindex,timeindex], 0.02);
-
-# ╔═╡ b295953a-3938-46fb-b61f-4026e324af4a
-fieldjson
 
 # ╔═╡ 782561ba-18b8-4e75-a8c9-8d7065a12d9e
 typeof(fieldjson)
@@ -754,9 +758,9 @@ fieldjson2 = replace(fieldjson, "\"" => "'")
 	}
 
 	// Define function that defines the colors
-	$(colorfunction)
-	var field = $(fieldjson2)
-	var divafield = new L.GeoJSON(field, {style: fieldStyle}).addTo(map);
+	//$(colorfunction)
+	//var field = $(fieldjson2)
+	//var divafield = new L.GeoJSON(field, {style: fieldStyle}).addTo(map);
 
 	var southWest = new L.LatLng($(minlat), $(minlon)),
     	northEast = new L.LatLng($(maxlat), $(maxlon)),
@@ -776,16 +780,6 @@ fieldjson2 = replace(fieldjson, "\"" => "'")
 
 </body>
 """)
-
-# ╔═╡ ccdba1fe-582e-4962-9046-1f7e6a8e1834
-begin 
-	open("thefunction.js", "w") do ds
-		write(ds, colorfunction)
-	end
-	open("thefield.js", "w") do ds
-		write(ds, fieldjson2)
-	end
-end
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -2110,7 +2104,7 @@ version = "17.4.0+2"
 # ╟─2d812c57-40f6-499b-972f-69be172d1365
 # ╟─de7029a9-a5a5-4cea-82e1-43f596c2b617
 # ╟─b9c9921b-b41a-480e-b0ac-fca6e652dc22
-# ╠═3de1e314-10a2-4604-9c2d-dda5e95e01b4
+# ╟─3de1e314-10a2-4604-9c2d-dda5e95e01b4
 # ╟─7d195f6e-5308-40b3-9547-6614e96c006a
 # ╟─e7ae81f3-970e-4d3f-936f-3073b1063e5c
 # ╟─e57790e8-35e9-4920-b24b-0b1fe07f42ce
@@ -2128,13 +2122,11 @@ version = "17.4.0+2"
 # ╟─b64bc67d-ab2e-47a3-9f5f-0092f7917970
 # ╠═7bac5550-6079-475d-8432-4913087a9a4b
 # ╟─37ad43bd-432d-49f7-8d48-27e9831a3111
-# ╠═a2d61983-0042-405f-ada9-1024e86c1644
-# ╠═b295953a-3938-46fb-b61f-4026e324af4a
+# ╟─a2d61983-0042-405f-ada9-1024e86c1644
 # ╟─21aa2085-6c2e-41b8-97bc-e6eae39c924e
-# ╠═23eca676-7c99-458a-8999-f799ba5b0222
+# ╟─23eca676-7c99-458a-8999-f799ba5b0222
 # ╠═b20b0a42-2f04-4abc-8b37-278d62a42e32
 # ╠═05def578-6786-4713-af46-ac58b334f5c7
-# ╠═c72fefc0-72aa-4642-bfc4-ef851cf2666b
 # ╠═64055f4f-d453-4535-8cce-02a23ab99275
 # ╠═7b97d3ad-97aa-46bf-8141-15ce7c077863
 # ╟─888ba762-4101-4139-88e9-8978d734f1cd
@@ -2150,7 +2142,7 @@ version = "17.4.0+2"
 # ╟─635c8b69-3e30-4ddd-b6df-1c90e8a516b9
 # ╠═79a50ac3-a5c1-499e-801d-eebc7501d2bb
 # ╟─b8b9a325-b647-4e19-bb95-a768e1c457c3
-# ╠═4cb3bb80-2b61-49df-9be5-71d92b56c367
+# ╟─4cb3bb80-2b61-49df-9be5-71d92b56c367
 # ╟─3c65c949-2b21-4f70-9bd3-04fb783fd9d2
 # ╠═f84ddbf7-934b-47d9-9bf3-39d3d1bd076c
 # ╟─d708b881-8678-40cc-8a07-0513a41159c6
@@ -2170,11 +2162,10 @@ version = "17.4.0+2"
 # ╠═f72bd266-4559-4895-b753-ced821ffc44e
 # ╠═782561ba-18b8-4e75-a8c9-8d7065a12d9e
 # ╟─0674379d-a171-4511-988e-4c917b50974e
-# ╠═bf33dcb0-cae6-4835-80bf-d649904b7a84
-# ╠═5258b923-3346-4ecc-aabc-da11e3fa6ae9
-# ╠═e6577f5a-00ba-4ea8-bce7-c952b7abc500
+# ╟─bf33dcb0-cae6-4835-80bf-d649904b7a84
+# ╟─5258b923-3346-4ecc-aabc-da11e3fa6ae9
+# ╟─e6577f5a-00ba-4ea8-bce7-c952b7abc500
 # ╠═26dddf63-91a3-4520-9f2c-9a8c654902d5
-# ╠═454ffcef-ea5e-4b1c-8ac7-c6bd5e20290b
-# ╠═ccdba1fe-582e-4962-9046-1f7e6a8e1834
+# ╟─454ffcef-ea5e-4b1c-8ac7-c6bd5e20290b
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
