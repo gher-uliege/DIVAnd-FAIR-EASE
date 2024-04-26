@@ -164,7 +164,7 @@ domaininfo = Dict("Arctic region" => [-44.25, 70.0, 56.5, 83.0],
 				  "Mediterranean_Sea" => [-7.0, 36.375, 30.0, 45.875],
 				  "North_Sea" => [-100., 50., -80., 80.],
 				  "Canary_Islands" => [-20., -9., 25., 31.5],
-				  "World_Ocean" => [-150., 150., -80., 80.]);
+				  "World_Ocean" => [-180., 180., -90., 90.]);
 
 # ╔═╡ 7d195f6e-5308-40b3-9547-6614e96c006a
 @bind regionname Select(collect(keys(domaininfo)))
@@ -202,8 +202,8 @@ md"""
 
 # ╔═╡ 1803fa0b-45a4-443a-80d8-054537137f67
 begin
-	datestart = Dates.Date(2000, 1, 1)
-	dateend = Dates.Date(2021, 12, 31)
+	datestart = Dates.Date(2005, 1, 1)
+	dateend = Dates.Date(2005, 12, 31)
 end
 
 # ╔═╡ 775ce187-9ce5-4e75-aab8-b2153e7a5c29
@@ -235,7 +235,7 @@ md"""
 
 # ╔═╡ b5d4f777-6ac0-4e84-9179-e96e25f8d542
 begin 
-	filename = joinpath(datadir, "Argo_$(parameter)_$(regionname)_$(Dates.format(datestart, "yyyymmdd"))-$(Dates.format(dateend, "yyyymmdd"))_$(Int(mindepth))-$(Int(maxdepth))m.nc";
+	filename = joinpath(datadir, "Argo_$(parameter)_$(regionname)_$(Dates.format(datestart, "yyyymmdd"))-$(Dates.format(dateend, "yyyymmdd"))_$(Int(mindepth))-$(Int(maxdepth))m.nc");
 
 	if isfile(filename)
 		@info("File already downloaded")
@@ -271,6 +271,7 @@ begin
 	@time obslon, obslat, obsdepth, obsdates, obsval =  read_netcdf(filename);
 	coords = [ [obslon[i], obslat[i]] for i in 1:length(obslon) ];
 	unique!(coords);
+	@info("Found $(length(coords)) unique coordinates")
 end
 
 # ╔═╡ 37ad43bd-432d-49f7-8d48-27e9831a3111
@@ -679,9 +680,6 @@ end;
 # ╔═╡ 26dddf63-91a3-4520-9f2c-9a8c654902d5
 fieldjson, colorfunction = write_field_json(lon, lat, field[:,:,depthindex,timeindex], 0.02);
 
-# ╔═╡ 782561ba-18b8-4e75-a8c9-8d7065a12d9e
-typeof(fieldjson)
-
 # ╔═╡ 454ffcef-ea5e-4b1c-8ac7-c6bd5e20290b
 fieldjson2 = replace(fieldjson, "\"" => "'")
 
@@ -713,7 +711,7 @@ fieldjson2 = replace(fieldjson, "\"" => "'")
 <script>
 
 	var map = L.map('map').setView([43., 34.], 6);
-	var myRenderer = L.canvas({ padding: 0.5 });
+	var myRenderer = L.canvas({ padding: 0.1 });
 
 	var OSM = L.tileLayer.provider('OpenStreetMap');
 	var Carto = L.tileLayer.provider('CartoDB.Positron').addTo(map);
@@ -2130,7 +2128,7 @@ version = "17.4.0+2"
 # ╟─b64bc67d-ab2e-47a3-9f5f-0092f7917970
 # ╠═7bac5550-6079-475d-8432-4913087a9a4b
 # ╟─37ad43bd-432d-49f7-8d48-27e9831a3111
-# ╟─a2d61983-0042-405f-ada9-1024e86c1644
+# ╠═a2d61983-0042-405f-ada9-1024e86c1644
 # ╟─21aa2085-6c2e-41b8-97bc-e6eae39c924e
 # ╟─23eca676-7c99-458a-8999-f799ba5b0222
 # ╠═b20b0a42-2f04-4abc-8b37-278d62a42e32
@@ -2168,7 +2166,6 @@ version = "17.4.0+2"
 # ╠═05ae76b2-f489-4264-bd42-9314a8aad0a9
 # ╠═3fe16edc-93b1-48a0-8d3c-5e56e2c13b2b
 # ╠═f72bd266-4559-4895-b753-ced821ffc44e
-# ╠═782561ba-18b8-4e75-a8c9-8d7065a12d9e
 # ╟─0674379d-a171-4511-988e-4c917b50974e
 # ╟─bf33dcb0-cae6-4835-80bf-d649904b7a84
 # ╟─5258b923-3346-4ecc-aabc-da11e3fa6ae9
