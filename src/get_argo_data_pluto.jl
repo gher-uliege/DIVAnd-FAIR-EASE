@@ -283,6 +283,102 @@ md"""
 ### 🌍 Interactive map ([`Leaflet`](https://leafletjs.com/))
 """
 
+# ╔═╡ a2d61983-0042-405f-ada9-1024e86c1644
+@htl("""
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	
+	<title>Observations in $(regionname)</title>
+	
+   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" integrity="sha512-h9FcoyWjHcOcmEVkxOfTLnmZFWIH0iZhZT1H2TbOq55xssQGEJHEaIm+PgoUaZbRvQTNTluNOEfb1ZRy6D3BOw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" integrity="sha512-puJW3E/qXDqYp9IfhAI54BJEaWIfloJ7JWs7OeD5i6ruC9JZL1gERT1wjtwXFlh7CjE7ZJ+/vcRZRkIYIb6p4g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+      <script src="https://unpkg.com/leaflet-providers@latest/leaflet-providers.js"></script>
+
+	<style>
+		html, body {
+			height: 100%;
+			margin: 0;
+		}
+	</style>
+
+<body>
+<div id="map" style="width: 100%; height: 400px;"></div>
+<script>
+
+	var map = L.map('map').setView([43., 34.], 6);
+	var myRenderer = L.canvas({ padding: 0.1 });
+
+	var OSM = L.tileLayer.provider('OpenStreetMap');
+	var Carto = L.tileLayer.provider('CartoDB.Positron').addTo(map);
+
+    var baseMaps = {
+      "OpenStreetMap": OSM,
+	  "Carto": Carto
+    };
+
+	var geojsonMarkerOptions = {
+		renderer: myRenderer,
+	    radius: 1.5,
+	    fillColor: "#ff7800",
+	    color: "#000",
+	    weight: 1,
+	    opacity: 1,
+	    fillOpacity: 0.8
+	};
+
+	var geojsonFeature = {
+            "type": "Feature",
+            "geometry": {
+                "type": "MultiPoint",
+	                "coordinates": $(coords)
+	            }
+	        };
+
+	var obs = L.geoJSON(geojsonFeature, {
+	    pointToLayer: function (feature, latlng) {
+	        return L.circleMarker(latlng, geojsonMarkerOptions);
+	    }
+	}).addTo(map);
+
+	var bathy = L.tileLayer.wms("https://ows.emodnet-bathymetry.eu/wms", {
+	    layers: ['emodnet:mean_atlas_land', 'coastlines'],
+		format: 'image/png',
+	    transparent: true,
+	    attribution: "EMODnet Bathymetry"
+	}).addTo(map);
+
+	function fieldStyle(feature) {
+		return {
+			fillColor: getMoreColor(feature.properties.field),
+			color: getMoreColor(feature.properties.field),
+			weight: 1,
+			opacity: 1,
+			fillOpacity: 0.7
+		};
+	}
+
+	// Define function that defines the colors
+	//var divafield = new L.GeoJSON(field, {style: fieldStyle}).addTo(map);
+
+	var southWest = new L.LatLng($(minlat), $(minlon)),
+    	northEast = new L.LatLng($(maxlat), $(maxlon)),
+    	bounds = new L.LatLngBounds(southWest, northEast)
+
+	map.fitBounds(bounds);
+
+	var overlayers = {
+    	"Observation locations" : obs,
+		"EMODnet bathymetry": bathy,
+		//"DIVAnd interpolation": divafield
+    };
+
+	L.control.layers(baseMaps, overlayers, {collapsed:false}).addTo(map);
+	
+</script>
+
+</body>
+""")
+
 # ╔═╡ 21aa2085-6c2e-41b8-97bc-e6eae39c924e
 md"""
 ## 🎨 Make plot
@@ -684,118 +780,8 @@ end;
 # ╔═╡ 26dddf63-91a3-4520-9f2c-9a8c654902d5
 fieldjson, colorfunction = write_field_json(lon, lat, field[:,:,depthindex,timeindex], 0.02);
 
-# ╔═╡ a2d61983-0042-405f-ada9-1024e86c1644
-@htl("""
-	<meta charset="utf-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1">
-	
-	<title>Observations in $(regionname)</title>
-	
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.8.0/dist/leaflet.css" integrity="sha512-hoalWLoI8r4UszCkZ5kL8vayOGVae1oxXe/2A4AO6J9+580uKHDO3JdHb7NzwwzK5xr/Fs0W40kiNHxM9vyTtQ==" crossorigin=""/>
-    <script src="https://unpkg.com/leaflet@1.8.0/dist/leaflet.js" integrity="sha512-BB3hKbKWOc9Ez/TAwyWxNXeoV9c1v6FIeYiBieIWkpLjauysF18NzgR1MBNBXf8/KABdlkX68nAhlwcDFLGPCQ==" crossorigin=""></script>
-      <script src="https://unpkg.com/leaflet-providers@latest/leaflet-providers.js"></script>
-
-	<style>
-		html, body {
-			height: 100%;
-			margin: 0;
-		}
-		.leaflet-container {
-			max-width: 100%;
-			max-height: 100%;
-		}
-	</style>
-
-<body>
-<div id="map" style="width: 100%; height: 400px;"></div>
-
-<script>
-
-	var map = L.map('map').setView([43., 34.], 6);
-	var myRenderer = L.canvas({ padding: 0.1 });
-
-	var OSM = L.tileLayer.provider('OpenStreetMap');
-	var Carto = L.tileLayer.provider('CartoDB.Positron').addTo(map);
-
-    var baseMaps = {
-      "OpenStreetMap": OSM,
-	  "Carto": Carto
-    };
-
-	var geojsonMarkerOptions = {
-		renderer: myRenderer,
-	    radius: 1.5,
-	    fillColor: "#ff7800",
-	    color: "#000",
-	    weight: 1,
-	    opacity: 1,
-	    fillOpacity: 0.8
-	};
-
-	var geojsonFeature = {
-            "type": "Feature",
-            "geometry": {
-                "type": "MultiPoint",
-	                "coordinates": $(coords)
-	            }
-	        };
-
-	var obs = L.geoJSON(geojsonFeature, {
-	    pointToLayer: function (feature, latlng) {
-	        return L.circleMarker(latlng, geojsonMarkerOptions);
-	    }
-	}).addTo(map);
-
-	var bathy = L.tileLayer.wms("https://ows.emodnet-bathymetry.eu/wms", {
-	    layers: ['emodnet:mean_atlas_land', 'coastlines'],
-		format: 'image/png',
-	    transparent: true,
-	    attribution: "EMODnet Bathymetry"
-	}).addTo(map);
-
-	function fieldStyle(feature) {
-		return {
-			fillColor: getMoreColor(feature.properties.field),
-			color: getMoreColor(feature.properties.field),
-			weight: 1,
-			opacity: 1,
-			fillOpacity: 0.7
-		};
-	}
-
-	// Define function that defines the colors
-	$(colorfunction);
-	console.log($(colorfunction));
-	var field = `$(fieldjson)`;
-	//var divafield = new L.GeoJSON(field, {style: fieldStyle}).addTo(map);
-
-	var southWest = new L.LatLng($(minlat), $(minlon)),
-    	northEast = new L.LatLng($(maxlat), $(maxlon)),
-    	bounds = new L.LatLngBounds(southWest, northEast)
-
-	map.fitBounds(bounds);
-
-	var overlayers = {
-    	"Observation locations" : obs,
-		"EMODnet bathymetry": bathy,
-		//"DIVAnd interpolation": divafield
-    };
-
-	L.control.layers(baseMaps, overlayers, {collapsed:false}).addTo(map);
-	
-</script>
-
-</body>
-""")
-
-# ╔═╡ 43624cf1-45b7-41dc-b4de-d0f568e0a81a
-fieldjson
-
 # ╔═╡ 454ffcef-ea5e-4b1c-8ac7-c6bd5e20290b
 fieldjson2 = replace(fieldjson, "\"" => "'")
-
-# ╔═╡ 76e04e4d-507d-4141-a96f-1dc62a76aaae
-print(fieldjson2)
 
 # ╔═╡ aa8ce299-72c3-4c10-bc5b-2df7b8c55fe2
 fieldjson2
@@ -2146,8 +2132,7 @@ version = "17.4.0+2"
 # ╟─b64bc67d-ab2e-47a3-9f5f-0092f7917970
 # ╠═7bac5550-6079-475d-8432-4913087a9a4b
 # ╟─37ad43bd-432d-49f7-8d48-27e9831a3111
-# ╠═a2d61983-0042-405f-ada9-1024e86c1644
-# ╠═43624cf1-45b7-41dc-b4de-d0f568e0a81a
+# ╟─a2d61983-0042-405f-ada9-1024e86c1644
 # ╟─21aa2085-6c2e-41b8-97bc-e6eae39c924e
 # ╟─23eca676-7c99-458a-8999-f799ba5b0222
 # ╠═b20b0a42-2f04-4abc-8b37-278d62a42e32
@@ -2190,7 +2175,6 @@ version = "17.4.0+2"
 # ╟─5258b923-3346-4ecc-aabc-da11e3fa6ae9
 # ╟─e6577f5a-00ba-4ea8-bce7-c952b7abc500
 # ╠═26dddf63-91a3-4520-9f2c-9a8c654902d5
-# ╠═76e04e4d-507d-4141-a96f-1dc62a76aaae
 # ╟─454ffcef-ea5e-4b1c-8ac7-c6bd5e20290b
 # ╠═aa8ce299-72c3-4c10-bc5b-2df7b8c55fe2
 # ╠═782561ba-18b8-4e75-a8c9-8d7065a12d9e
