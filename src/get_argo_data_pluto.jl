@@ -162,9 +162,9 @@ domaininfo = Dict("Arctic region" => [-44.25, 70.0, 56.5, 83.0],
 			      "Baltic_Sea" => [9.4, 30.9, 53.0, 65.9],
 				  "Black_Sea" => [26.5, 41.95, 40.0, 47.95],
 				  "Mediterranean_Sea" => [-7.0, 36.375, 30.0, 45.875],
-				  "North_Sea" => [-5.4, 13.0, 47.9, 62.0],
-				  "Canary_Islands" => [-20., -9., 25., 31.5]
-				  );
+				  "North_Sea" => [-100., 50., -80., 80.],
+				  "Canary_Islands" => [-20., -9., 25., 31.5],
+				  "World_Ocean" => [-150., 150., -80., 80.]);
 
 # ╔═╡ 7d195f6e-5308-40b3-9547-6614e96c006a
 @bind regionname Select(collect(keys(domaininfo)))
@@ -213,7 +213,7 @@ begin
 	minlat = domaininfo[regionname][3]
 	maxlat = domaininfo[regionname][4]
 	mindepth = 0. #Minimum water depth
-	maxdepth = 50. #Maximum water depth
+	maxdepth = 10. #Maximum water depth
 end
 
 # ╔═╡ 0020634a-d792-4ace-bd74-ab565dfaa86d
@@ -225,6 +225,9 @@ md"""
 @time query = prepare_query(parameter, units, datestart, dateend, 
     mindepth, maxdepth, minlon, maxlon, minlat, maxlat);
 
+# ╔═╡ 2ba4abb7-ae6a-40c0-8c90-ef25b06ef3e0
+query
+
 # ╔═╡ c35fcaf8-6183-458c-8ff1-f3f2710670ee
 md"""
 ### Perform request and write into netCDF file
@@ -232,12 +235,16 @@ md"""
 
 # ╔═╡ b5d4f777-6ac0-4e84-9179-e96e25f8d542
 begin 
-	filename = "./data/Argo_$(parameter)_$(regionname)_$(Dates.format(datestart, "yyyymmdd"))-$(Dates.format(dateend, "yyyymmdd"))_$(Int(mindepth))-$(Int(maxdepth))m.nc";
-	
-	@time open(filename, "w") do io
-	    HTTP.request("POST", "$(beaconURL)/api/query", 
-	    ["Content-Type" => "application/json"], query,
-	    response_stream=io);
+	filename = joinpath(datadir, "Argo_$(parameter)_$(regionname)_$(Dates.format(datestart, "yyyymmdd"))-$(Dates.format(dateend, "yyyymmdd"))_$(Int(mindepth))-$(Int(maxdepth))m.nc";
+
+	if isfile(filename)
+		@info("File already downloaded")
+	else
+		@time open(filename, "w") do io
+			HTTP.request("POST", "$(beaconURL)/api/query", 
+		    ["Content-Type" => "application/json"], query,
+		    response_stream=io);
+		end	
 	end;
 end;
 
@@ -2104,7 +2111,7 @@ version = "17.4.0+2"
 # ╟─2d812c57-40f6-499b-972f-69be172d1365
 # ╟─de7029a9-a5a5-4cea-82e1-43f596c2b617
 # ╟─b9c9921b-b41a-480e-b0ac-fca6e652dc22
-# ╟─3de1e314-10a2-4604-9c2d-dda5e95e01b4
+# ╠═3de1e314-10a2-4604-9c2d-dda5e95e01b4
 # ╟─7d195f6e-5308-40b3-9547-6614e96c006a
 # ╟─e7ae81f3-970e-4d3f-936f-3073b1063e5c
 # ╟─e57790e8-35e9-4920-b24b-0b1fe07f42ce
@@ -2116,6 +2123,7 @@ version = "17.4.0+2"
 # ╠═775ce187-9ce5-4e75-aab8-b2153e7a5c29
 # ╟─0020634a-d792-4ace-bd74-ab565dfaa86d
 # ╠═7e741d55-ea1f-449e-939e-036259742653
+# ╠═2ba4abb7-ae6a-40c0-8c90-ef25b06ef3e0
 # ╟─c35fcaf8-6183-458c-8ff1-f3f2710670ee
 # ╠═b5d4f777-6ac0-4e84-9179-e96e25f8d542
 # ╟─921f570e-6c64-4b3e-a7c9-beb9db7ef4c9
