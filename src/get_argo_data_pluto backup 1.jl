@@ -164,11 +164,10 @@ domaininfo = Dict("Arctic region" => [-44.25, 70.0, 56.5, 83.0],
 				  "Mediterranean_Sea" => [-7.0, 36.375, 30.0, 45.875],
 				  "North_Sea" => [-100., 50., -80., 80.],
 				  "Canary_Islands" => [-20., -9., 25., 31.5],
-				  #"World_Ocean" => [-180., 180., -90., 90.]
-				  );
+				  "World_Ocean" => [-180., 180., -90., 90.]);
 
 # ╔═╡ 7d195f6e-5308-40b3-9547-6614e96c006a
-@bind regionname Select(collect(keys(domaininfo)), default="Baltic_sea")
+@bind regionname Select(collect(keys(domaininfo)))
 
 # ╔═╡ e7ae81f3-970e-4d3f-936f-3073b1063e5c
 md"""
@@ -684,6 +683,12 @@ end;
 # ╔═╡ 26dddf63-91a3-4520-9f2c-9a8c654902d5
 fieldjson, colorfunction = write_field_json(lon, lat, field[:,:,depthindex,timeindex], 0.02);
 
+# ╔═╡ 782561ba-18b8-4e75-a8c9-8d7065a12d9e
+typeof(fieldjson)
+
+# ╔═╡ 454ffcef-ea5e-4b1c-8ac7-c6bd5e20290b
+fieldjson2 = replace(fieldjson, "\"" => "'")
+
 # ╔═╡ a2d61983-0042-405f-ada9-1024e86c1644
 @htl("""
 	<meta charset="utf-8">
@@ -765,9 +770,8 @@ fieldjson, colorfunction = write_field_json(lon, lat, field[:,:,depthindex,timei
 
 	// Define function that defines the colors
 	$(colorfunction);
-	console.log($(colorfunction));
-	var field = `$(fieldjson)`;
-	//var divafield = new L.GeoJSON(field, {style: fieldStyle}).addTo(map);
+	var field = "$(fieldjson)";
+	var divafield = new L.GeoJSON(field, {style: fieldStyle}).addTo(map);
 
 	var southWest = new L.LatLng($(minlat), $(minlon)),
     	northEast = new L.LatLng($(maxlat), $(maxlon)),
@@ -778,7 +782,7 @@ fieldjson, colorfunction = write_field_json(lon, lat, field[:,:,depthindex,timei
 	var overlayers = {
     	"Observation locations" : obs,
 		"EMODnet bathymetry": bathy,
-		//"DIVAnd interpolation": divafield
+		"DIVAnd interpolation": divafield
     };
 
 	L.control.layers(baseMaps, overlayers, {collapsed:false}).addTo(map);
@@ -788,20 +792,17 @@ fieldjson, colorfunction = write_field_json(lon, lat, field[:,:,depthindex,timei
 </body>
 """)
 
-# ╔═╡ 43624cf1-45b7-41dc-b4de-d0f568e0a81a
-fieldjson
+# ╔═╡ 782561ba-18b8-4e75-a8c9-8d7065a12d9e
+typeof(fieldjson)
 
 # ╔═╡ 454ffcef-ea5e-4b1c-8ac7-c6bd5e20290b
 fieldjson2 = replace(fieldjson, "\"" => "'")
 
-# ╔═╡ 76e04e4d-507d-4141-a96f-1dc62a76aaae
-print(fieldjson2)
-
 # ╔═╡ aa8ce299-72c3-4c10-bc5b-2df7b8c55fe2
 fieldjson2
 
-# ╔═╡ 782561ba-18b8-4e75-a8c9-8d7065a12d9e
-typeof(fieldjson)
+# ╔═╡ 76e04e4d-507d-4141-a96f-1dc62a76aaae
+print(fieldjson2)
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -2146,8 +2147,7 @@ version = "17.4.0+2"
 # ╟─b64bc67d-ab2e-47a3-9f5f-0092f7917970
 # ╠═7bac5550-6079-475d-8432-4913087a9a4b
 # ╟─37ad43bd-432d-49f7-8d48-27e9831a3111
-# ╠═a2d61983-0042-405f-ada9-1024e86c1644
-# ╠═43624cf1-45b7-41dc-b4de-d0f568e0a81a
+# ╟─a2d61983-0042-405f-ada9-1024e86c1644
 # ╟─21aa2085-6c2e-41b8-97bc-e6eae39c924e
 # ╟─23eca676-7c99-458a-8999-f799ba5b0222
 # ╠═b20b0a42-2f04-4abc-8b37-278d62a42e32
@@ -2192,7 +2192,5 @@ version = "17.4.0+2"
 # ╠═26dddf63-91a3-4520-9f2c-9a8c654902d5
 # ╠═76e04e4d-507d-4141-a96f-1dc62a76aaae
 # ╟─454ffcef-ea5e-4b1c-8ac7-c6bd5e20290b
-# ╠═aa8ce299-72c3-4c10-bc5b-2df7b8c55fe2
-# ╠═782561ba-18b8-4e75-a8c9-8d7065a12d9e
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002

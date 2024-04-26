@@ -1,0 +1,1 @@
+function getMoreColor(d) {return d < 5.0 ? '#313695' :d < 5.5 ? '#4065AC' :d < 6.0 ? '#5E93C3' :d < 6.5 ? '#85BBD9' :d < 7.0 ? '#AEDBEA' :d < 7.5 ? '#D8EFF6' :d < 8.0 ? '#F3FBD4' :d < 8.5 ? '#FFF2AC' :d < 9.0 ? '#FED889' :d < 9.5 ? '#FDB164' :d < 10.0 ? '#F67F4B' :d < 10.5 ? '#E65036' :'#CA2427'; }
