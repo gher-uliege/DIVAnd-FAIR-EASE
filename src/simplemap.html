@@ -1,80 +1,92 @@
-
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 
 <title>Observations</title>
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.8.0/dist/leaflet.css" integrity="sha512-hoalWLoI8r4UszCkZ5kL8vayOGVae1oxXe/2A4AO6J9+580uKHDO3JdHb7NzwwzK5xr/Fs0W40kiNHxM9vyTtQ==" crossorigin=""/>
-<script src="https://unpkg.com/leaflet@1.8.0/dist/leaflet.js" integrity="sha512-BB3hKbKWOc9Ez/TAwyWxNXeoV9c1v6FIeYiBieIWkpLjauysF18NzgR1MBNBXf8/KABdlkX68nAhlwcDFLGPCQ==" crossorigin=""></script>
+<link
+  rel="stylesheet"
+  href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"
+  integrity="sha512-h9FcoyWjHcOcmEVkxOfTLnmZFWIH0iZhZT1H2TbOq55xssQGEJHEaIm+PgoUaZbRvQTNTluNOEfb1ZRy6D3BOw=="
+  crossorigin="anonymous"
+  referrerpolicy="no-referrer"
+/>
+<script
+  src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"
+  integrity="sha512-puJW3E/qXDqYp9IfhAI54BJEaWIfloJ7JWs7OeD5i6ruC9JZL1gERT1wjtwXFlh7CjE7ZJ+/vcRZRkIYIb6p4g=="
+  crossorigin="anonymous"
+  referrerpolicy="no-referrer"
+></script>
 <script src="https://unpkg.com/leaflet-providers@latest/leaflet-providers.js"></script>
+<script
+  src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-providers/1.13.0/leaflet-providers.min.js"
+  integrity="sha512-5EYsvqNbFZ8HX60keFbe56Wr0Mq5J1RrA0KdVcfGDhnjnzIRsDrT/S3cxdzpVN2NGxAB9omgqnlh4/06TvWCMw=="
+  crossorigin="anonymous"
+  referrerpolicy="no-referrer"
+></script>
 
 <style>
-    html, body {
-        height: 100%;
-        margin: 0;
-    }
-    .leaflet-container {
-        max-width: 100%;
-        max-height: 100%;
-    }
+  html,
+  body {
+    height: 100%;
+    margin: 0;
+  }
 </style>
 
 <body>
-<div id="map" style="width: 100%; height:100%;"></div>
-<script>
+  <div id="map" style="width: 100%; height: 100%"></div>
+  <script src="colorfunction.js"></script>
+  <script src="field.js"></script>
+  <script>
+    var map = L.map('map').setView([43, 34], 6)
+    var myRenderer = L.canvas({ padding: 0.5 })
 
-	var map = L.map('map').setView([43., 34.], 6);
-	var myRenderer = L.canvas({ padding: 0.5 });
-
-	var OSM = L.tileLayer.provider('OpenStreetMap');
-	var Carto = L.tileLayer.provider('CartoDB.Positron').addTo(map);
+    var OSM = L.tileLayer.provider('OpenStreetMap')
+    var Carto = L.tileLayer.provider('CartoDB.Positron').addTo(map)
 
     var baseMaps = {
-      "OpenStreetMap": OSM,
-	  "Carto": Carto
-    };
+      OpenStreetMap: OSM,
+      Carto: Carto
+    }
 
-	var geojsonMarkerOptions = {
-		renderer: myRenderer,
-	    radius: 1.5,
-	    fillColor: "#ff7800",
-	    color: "#000",
-	    weight: 1,
-	    opacity: 1,
-	    fillOpacity: 0.8
-	};
+    var geojsonMarkerOptions = {
+      renderer: myRenderer,
+      radius: 1.5,
+      fillColor: '#ff7800',
+      color: '#000',
+      weight: 1,
+      opacity: 1,
+      fillOpacity: 0.8
+    }
 
+    var bathy = L.tileLayer
+      .wms('https://ows.emodnet-bathymetry.eu/wms', {
+        layers: ['emodnet:mean_atlas_land', 'coastlines'],
+        format: 'image/png',
+        transparent: true,
+        attribution: 'EMODnet Bathymetry'
+      })
+      .addTo(map)
 
-	var bathy = L.tileLayer.wms("https://ows.emodnet-bathymetry.eu/wms", {
-	    layers: ['emodnet:mean_atlas_land', 'coastlines'],
-		format: 'image/png',
-	    transparent: true,
-	    attribution: "EMODnet Bathymetry"
-	}).addTo(map);
+    function fieldStyle(feature) {
+      return {
+        radius: 5,
+        fillColor: getMoreColor(feature.properties.field),
+        color: getMoreColor(feature.properties.field),
+        weight: 2,
+        opacity: 1.0,
+        fillOpacity: 0.7
+      }
+    }
 
-	function fieldStyle(feature) {
-		return {
-		radius: 5,
-			fillColor: getMoreColor(feature.properties.field),
-			color: getMoreColor(feature.properties.field),
-			weight: 2,
-			opacity: 1.0,
-			fillOpacity: 0.7
-		};
-	}
+    var divafield = new L.geoJSON(field, {
+      style: fieldStyle
+    }).addTo(map)
 
+    var overlayers = {
+      'EMODnet bathymetry': bathy,
+      'DIVAnd interpolation': divafield
+    }
 
-    L.geoJSON(field, {
-        style: fieldStyle
-    }).addTo(map);
-
-	var overlayers = {
-		"EMODnet bathymetry": bathy,
-		//"DIVAnd interpolation": divafield
-    };
-
-	L.control.layers(baseMaps, overlayers, {collapsed:false}).addTo(map);
-	
-</script>
-
+    L.control.layers(baseMaps, overlayers, { collapsed: false }).addTo(map)
+  </script>
 </body>
