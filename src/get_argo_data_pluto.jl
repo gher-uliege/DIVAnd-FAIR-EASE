@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.40
+# v0.19.41
 
 using Markdown
 using InteractiveUtils
@@ -247,6 +247,9 @@ begin
 		end	
 	end;
 end;
+
+# ╔═╡ 8515e21c-0c7d-4f9e-9136-549a2b97bef4
+filename
 
 # ╔═╡ 921f570e-6c64-4b3e-a7c9-beb9db7ef4c9
 md"""
@@ -680,6 +683,9 @@ end;
 # ╔═╡ 26dddf63-91a3-4520-9f2c-9a8c654902d5
 fieldjson, colorfunction = write_field_json(lon, lat, field[:,:,depthindex,timeindex], 0.02);
 
+# ╔═╡ 782561ba-18b8-4e75-a8c9-8d7065a12d9e
+typeof(fieldjson)
+
 # ╔═╡ 454ffcef-ea5e-4b1c-8ac7-c6bd5e20290b
 fieldjson2 = replace(fieldjson, "\"" => "'")
 
@@ -763,9 +769,9 @@ fieldjson2 = replace(fieldjson, "\"" => "'")
 	}
 
 	// Define function that defines the colors
-	//$(colorfunction)
-	//var field = $(fieldjson2)
-	//var divafield = new L.GeoJSON(field, {style: fieldStyle}).addTo(map);
+	$(colorfunction);
+	var field = "$(fieldjson)";
+	var divafield = new L.GeoJSON(field, {style: fieldStyle}).addTo(map);
 
 	var southWest = new L.LatLng($(minlat), $(minlon)),
     	northEast = new L.LatLng($(maxlat), $(maxlon)),
@@ -776,7 +782,7 @@ fieldjson2 = replace(fieldjson, "\"" => "'")
 	var overlayers = {
     	"Observation locations" : obs,
 		"EMODnet bathymetry": bathy,
-		//"DIVAnd interpolation": divafield
+		"DIVAnd interpolation": divafield
     };
 
 	L.control.layers(baseMaps, overlayers, {collapsed:false}).addTo(map);
@@ -785,6 +791,18 @@ fieldjson2 = replace(fieldjson, "\"" => "'")
 
 </body>
 """)
+
+# ╔═╡ 782561ba-18b8-4e75-a8c9-8d7065a12d9e
+typeof(fieldjson)
+
+# ╔═╡ 454ffcef-ea5e-4b1c-8ac7-c6bd5e20290b
+fieldjson2 = replace(fieldjson, "\"" => "'")
+
+# ╔═╡ aa8ce299-72c3-4c10-bc5b-2df7b8c55fe2
+fieldjson2
+
+# ╔═╡ 76e04e4d-507d-4141-a96f-1dc62a76aaae
+print(fieldjson2)
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -2106,16 +2124,16 @@ version = "17.4.0+2"
 # ╠═be148eac-bbba-4929-a5ca-a7735c9b77a9
 # ╟─ff528eed-305f-4f2c-bf4b-c79f3ddd0010
 # ╟─31979a73-1b7f-4e84-9a18-ce8fd808d655
-# ╟─2d812c57-40f6-499b-972f-69be172d1365
+# ╠═2d812c57-40f6-499b-972f-69be172d1365
 # ╟─de7029a9-a5a5-4cea-82e1-43f596c2b617
 # ╟─b9c9921b-b41a-480e-b0ac-fca6e652dc22
-# ╠═3de1e314-10a2-4604-9c2d-dda5e95e01b4
+# ╟─3de1e314-10a2-4604-9c2d-dda5e95e01b4
 # ╟─7d195f6e-5308-40b3-9547-6614e96c006a
 # ╟─e7ae81f3-970e-4d3f-936f-3073b1063e5c
-# ╟─e57790e8-35e9-4920-b24b-0b1fe07f42ce
+# ╠═e57790e8-35e9-4920-b24b-0b1fe07f42ce
 # ╟─9d3aa9d8-ab25-48b3-aede-428c9d960815
 # ╟─f7510e4d-5814-4511-bcc3-27df3db89a30
-# ╠═9b9716d9-d363-4e3c-be27-98ddcf9600e6
+# ╟─9b9716d9-d363-4e3c-be27-98ddcf9600e6
 # ╟─5915e937-63ae-4ebb-99ce-01bfa9b40b63
 # ╠═1803fa0b-45a4-443a-80d8-054537137f67
 # ╠═775ce187-9ce5-4e75-aab8-b2153e7a5c29
@@ -2123,12 +2141,13 @@ version = "17.4.0+2"
 # ╠═7e741d55-ea1f-449e-939e-036259742653
 # ╠═2ba4abb7-ae6a-40c0-8c90-ef25b06ef3e0
 # ╟─c35fcaf8-6183-458c-8ff1-f3f2710670ee
+# ╠═8515e21c-0c7d-4f9e-9136-549a2b97bef4
 # ╠═b5d4f777-6ac0-4e84-9179-e96e25f8d542
 # ╟─921f570e-6c64-4b3e-a7c9-beb9db7ef4c9
 # ╟─b64bc67d-ab2e-47a3-9f5f-0092f7917970
 # ╠═7bac5550-6079-475d-8432-4913087a9a4b
 # ╟─37ad43bd-432d-49f7-8d48-27e9831a3111
-# ╠═a2d61983-0042-405f-ada9-1024e86c1644
+# ╟─a2d61983-0042-405f-ada9-1024e86c1644
 # ╟─21aa2085-6c2e-41b8-97bc-e6eae39c924e
 # ╟─23eca676-7c99-458a-8999-f799ba5b0222
 # ╠═b20b0a42-2f04-4abc-8b37-278d62a42e32
@@ -2171,6 +2190,7 @@ version = "17.4.0+2"
 # ╟─5258b923-3346-4ecc-aabc-da11e3fa6ae9
 # ╟─e6577f5a-00ba-4ea8-bce7-c952b7abc500
 # ╠═26dddf63-91a3-4520-9f2c-9a8c654902d5
+# ╠═76e04e4d-507d-4141-a96f-1dc62a76aaae
 # ╟─454ffcef-ea5e-4b1c-8ac7-c6bd5e20290b
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
