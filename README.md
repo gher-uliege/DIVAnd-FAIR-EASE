@@ -22,10 +22,11 @@ winget install julia -s msstore
 
 Select one of the two following methods:
 
-- Using the package REPL (pressing the `]` key at the Julian REPL prompt) or 
+- Using the package REPL (pressing the `]` key at the Julian REPL prompt) 
 ```julia
 (@v1.10) pkg> add Pluto
 ```
+or
 - Using the Pkg module:
 ```julia
 julia> using Pkg.add("Pluto")
