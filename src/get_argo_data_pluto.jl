@@ -17,10 +17,8 @@ end
 # ╔═╡ 557eda82-f679-11ee-274e-37137b03fb0f
 begin
 	using HTTP
-	using JSON
 	using JSON3
 	using Dates
-	using Printf
 	using NCDatasets
 	using OrderedCollections
 	using PyPlot
@@ -40,10 +38,25 @@ end
 # ╔═╡ d9954dc8-c243-4a95-ba50-7768db5b6a82
 using DIVAnd
 
+# ╔═╡ 8fedd67c-80b5-42bb-8c02-c14d278e4e8c
+html"""
+<style>
+	a {
+		color: #c34113;
+	}
+	a:active {
+	  text-decoration: underline;
+	}
+	p {
+	  color: #4D4D4D;
+	}
+</style>
+"""
+
 # ╔═╡ c2f31032-1a7c-4fed-9713-0dd33b02ba37
 md"""
 # Interpolation of Argo profilers data
-In this notebook we download Argo data using the Beacon API and then create gridded fields using the [`DIVAnd`] software tool. 
+In this notebook we download Argo data using the [`Beacon`](https://beacon.maris.nl/) API and then create gridded fields using the [`DIVAnd`](https://github.com/gher-uliege/DIVAnd.jl) software tool. 
 
 In Pluto notebooks, all the cells are run directly, then if you modify one cell, all the cells depending on the modified one will be re-run.
 
@@ -55,8 +68,8 @@ In Pluto notebooks, all the cells are run directly, then if you modify one cell,
 
 # ╔═╡ 81791a25-bf35-44ef-b42d-c852b640163c
 md"""
-### Set API url 
-The URL is set up as an envionment variable, though other options exist.
+### 🔗 Set Beacon url 
+If we don't want to show it, we keep it as an environment variable (other options exist).
 """
 
 # ╔═╡ 4a823c93-6120-4204-ba4d-3b5558fc8e8d
@@ -90,7 +103,7 @@ begin
 	useleaflet = "Leaflet" in plotoptions
 	usecartopy = "Cartopy" in plotoptions
 	usebasemap = "Basemap" in plotoptions;
-	@info("Plots with $(plotoptions)");
+	@info("Creating plots with $(plotoptions)");
 end
 
 # ╔═╡ b20b0a42-2f04-4abc-8b37-278d62a42e32
@@ -101,11 +114,96 @@ if usebasemap
 	Basemap = basemap.Basemap
 end;
 
+# ╔═╡ b9c9921b-b41a-480e-b0ac-fca6e652dc22
+md"""
+### Domain and depth of interest
+We create a dictionary with different regions and their bounding box (west, east, south, north).
+"""
+
+# ╔═╡ 3de1e314-10a2-4604-9c2d-dda5e95e01b4
+domaininfo = Dict("Arctic region" => [-44.25, 70.0, 56.5, 83.0],
+				  "North_East_Atlantic" => [-42.0, -0.1, 24.9, 48.0], 
+			      "Baltic_Sea" => [9.4, 30.9, 53.0, 65.9],
+				  "Black_Sea" => [26.5, 41.95, 40.0, 47.95],
+				  "Mediterranean_Sea" => [-7.0, 36.375, 30.0, 45.875],
+				  "North_Sea" => [-100., 50., -80., 80.],
+				  "Canary_Islands" => [-20., -9., 25., 31.5],
+				  #"World_Ocean" => [-180., 180., -90., 90.]
+				  );
+
+# ╔═╡ 7d195f6e-5308-40b3-9547-6614e96c006a
+@bind regionname Select(collect(keys(domaininfo)), default="Baltic_sea")
+
+# ╔═╡ e7ae81f3-970e-4d3f-936f-3073b1063e5c
+md"""
+## Select parameters
+We create a dictionary with the variable names and their units.
+### Variable name
+"""
+
+# ╔═╡ e57790e8-35e9-4920-b24b-0b1fe07f42ce
+variableunits = Dict("sea_water_temperature"=> "degree_Celsius", 
+					 "sea_water_salinity"=>"psu", 
+					 "mass_concentration_of_chlorophyll_a_in_sea_water"=>"mg/m3",   
+					 "moles_of_nitrate_per_unit_mass_in_sea_water"=>"micromole/kg");
+
+# ╔═╡ 9d3aa9d8-ab25-48b3-aede-428c9d960815
+@bind parameter Select(["sea_water_temperature",  "sea_water_salinity", 
+        "mass_concentration_of_chlorophyll_a_in_sea_water",   	"moles_of_nitrate_per_unit_mass_in_sea_water"])
+
+# ╔═╡ f7510e4d-5814-4511-bcc3-27df3db89a30
+md"""
+### 📏 Units
+The units are updated everytime the variable name is modified.
+"""
+
+# ╔═╡ 9b9716d9-d363-4e3c-be27-98ddcf9600e6
+@bind units Select(["degree_Celsius", "psu", "mg/m3", "micromole/kg"],
+				   default=variableunits[parameter])
+
+# ╔═╡ 5915e937-63ae-4ebb-99ce-01bfa9b40b63
+md"""
+### 📆 Period of interest
+"""
+
+# ╔═╡ 1803fa0b-45a4-443a-80d8-054537137f67
+begin
+	datestart = Dates.Date(2005, 1, 1)
+	dateend = Dates.Date(2015, 12, 31)
+end
+
+# ╔═╡ 181c652b-ef85-402a-9f9b-61eb4f759a58
+md"""
+### 🗺️ Domain and depth range
+"""
+
+# ╔═╡ 775ce187-9ce5-4e75-aab8-b2153e7a5c29
+begin
+	minlon = domaininfo[regionname][1]
+	maxlon = domaininfo[regionname][2]
+	minlat = domaininfo[regionname][3]
+	maxlat = domaininfo[regionname][4]
+	mindepth = 0. #Minimum water depth
+	maxdepth = 400. #Maximum water depth
+end
+
+# ╔═╡ 0020634a-d792-4ace-bd74-ab565dfaa86d
+md"""
+## Query based on input fields
+We use the function `prepare_query` defined in the next cell.
+"""
+
 # ╔═╡ de7029a9-a5a5-4cea-82e1-43f596c2b617
 """
 	prepare_query(parameter, unit, datestart, dateend, mindepth, maxdept, minlon, maxlon, minlat, maxlat)
 
-Prepare the JSON query that will be passed to the API.
+Prepare the query (JSON) that will be passed to the API.
+
+# Example
+```julia
+julia> prepare_query("sea_water_temperature", "degree_Celsius", 
+Dates.Date(2000, 1, 1), Dates.Date(2020, 12, 31), 0., 250., 26.5, 41.95, 40.0, 47.95)
+```
 """
 function prepare_query(parameter::String, unit::String, datestart::Date, dateend::Date, mindepth::Float64, maxdepth::Float64, minlon::Float64, maxlon::Float64, minlat::Float64, maxlat::Float64; 
 dateref::Date=Dates.Date(1950, 1, 1))
@@ -113,7 +211,6 @@ dateref::Date=Dates.Date(1950, 1, 1))
     mintemporal = (datestart - dateref).value
     maxtemporal = (dateend - dateref).value
 
-    
     # Start with an ordered dictionary, then convert to JSON
     paramdict = OrderedDict(
     "query_parameters" => [
@@ -150,93 +247,22 @@ dateref::Date=Dates.Date(1950, 1, 1))
     return body::String
 end
 
-# ╔═╡ b9c9921b-b41a-480e-b0ac-fca6e652dc22
-md"""
-### Domain and depth of interest
-We create a dictionary with different regions
-"""
-
-# ╔═╡ 3de1e314-10a2-4604-9c2d-dda5e95e01b4
-domaininfo = Dict("Arctic region" => [-44.25, 70.0, 56.5, 83.0],
-				  "North_East_Atlantic" => [-42.0, -0.1, 24.9, 48.0], 
-			      "Baltic_Sea" => [9.4, 30.9, 53.0, 65.9],
-				  "Black_Sea" => [26.5, 41.95, 40.0, 47.95],
-				  "Mediterranean_Sea" => [-7.0, 36.375, 30.0, 45.875],
-				  "North_Sea" => [-100., 50., -80., 80.],
-				  "Canary_Islands" => [-20., -9., 25., 31.5],
-				  #"World_Ocean" => [-180., 180., -90., 90.]
-				  );
-
-# ╔═╡ 7d195f6e-5308-40b3-9547-6614e96c006a
-@bind regionname Select(collect(keys(domaininfo)), default="Baltic_sea")
-
-# ╔═╡ e7ae81f3-970e-4d3f-936f-3073b1063e5c
-md"""
-## Select parameters
-### Variable name
-"""
-
-# ╔═╡ e57790e8-35e9-4920-b24b-0b1fe07f42ce
-variableunits = Dict("sea_water_temperature"=> "degree_Celsius", 
-					 "sea_water_salinity"=>"psu", 
-					 "mass_concentration_of_chlorophyll_a_in_sea_water"=>"mg/m3",   
-					 "moles_of_nitrate_per_unit_mass_in_sea_water"=>"micromole/kg")
-
-# ╔═╡ 9d3aa9d8-ab25-48b3-aede-428c9d960815
-@bind parameter Select(["sea_water_temperature",  "sea_water_salinity", 
-        "mass_concentration_of_chlorophyll_a_in_sea_water",   	"moles_of_nitrate_per_unit_mass_in_sea_water"])
-
-# ╔═╡ f7510e4d-5814-4511-bcc3-27df3db89a30
-md"""
-### 📏 Units
-The units should be updated everytime you change the variable name.
-"""
-
-# ╔═╡ 9b9716d9-d363-4e3c-be27-98ddcf9600e6
-@bind units Select(["degree_Celsius", "psu", "mg/m3", "micromole/kg"],
-				   default=variableunits[parameter])
-
-# ╔═╡ 5915e937-63ae-4ebb-99ce-01bfa9b40b63
-md"""
-### Period of interest
-"""
-
-# ╔═╡ 1803fa0b-45a4-443a-80d8-054537137f67
-begin
-	datestart = Dates.Date(2005, 1, 1)
-	dateend = Dates.Date(2005, 12, 31)
-end
-
-# ╔═╡ 775ce187-9ce5-4e75-aab8-b2153e7a5c29
-begin
-	minlon = domaininfo[regionname][1]
-	maxlon = domaininfo[regionname][2]
-	minlat = domaininfo[regionname][3]
-	maxlat = domaininfo[regionname][4]
-	mindepth = 0. #Minimum water depth
-	maxdepth = 10. #Maximum water depth
-end
-
-# ╔═╡ 0020634a-d792-4ace-bd74-ab565dfaa86d
-md"""
-## Query body based on input fields
-"""
-
 # ╔═╡ 7e741d55-ea1f-449e-939e-036259742653
 @time query = prepare_query(parameter, units, datestart, dateend, 
     mindepth, maxdepth, minlon, maxlon, minlat, maxlat);
 
-# ╔═╡ 2ba4abb7-ae6a-40c0-8c90-ef25b06ef3e0
-query
-
 # ╔═╡ c35fcaf8-6183-458c-8ff1-f3f2710670ee
 md"""
 ### Perform request and write into netCDF file
+- If the file is already there, the Beacon API is not called.
+- The file name is created according to the region name, the period of interest and the depth range.
 """
 
 # ╔═╡ b5d4f777-6ac0-4e84-9179-e96e25f8d542
 begin 
 	filename = joinpath(datadir, "Argo_$(parameter)_$(regionname)_$(Dates.format(datestart, "yyyymmdd"))-$(Dates.format(dateend, "yyyymmdd"))_$(Int(mindepth))-$(Int(maxdepth))m.nc");
+
+	@info("Data will be written in file:\n$(filename)")
 
 	if isfile(filename)
 		@info("File already downloaded")
@@ -249,15 +275,22 @@ begin
 	end;
 end;
 
-# ╔═╡ 8515e21c-0c7d-4f9e-9136-549a2b97bef4
-filename
-
 # ╔═╡ 921f570e-6c64-4b3e-a7c9-beb9db7ef4c9
 md"""
 ### Read netCDF content
 """
 
 # ╔═╡ b64bc67d-ab2e-47a3-9f5f-0092f7917970
+"""
+	read_netcdf(datafile)
+
+Read the coordinates and the variable stored in the netCDF file `datafile`
+
+# Example
+```julia
+julia> obslon, obslat, obsdepth, obsdates, obsval =  read_netcdf("data.nc")
+```
+"""
 function read_netcdf(datafile::AbstractString)
     NCDataset(datafile, "r") do df
         lon = df["LONGITUDE"][:] 
@@ -418,10 +451,10 @@ if usecartopy
 	cbar1 = plt.colorbar(scat, shrink=.65)
 	cbar1.set_label(units, rotation=0, ha="left")
 	
-	plt.savefig(joinpath(figdir, "observations.jpg"))
+	plt.savefig(joinpath(figdir, "observations01.jpg"))
 	plt.close(fig1)
 
-	LocalResource(joinpath(figdir, "observations.jpg"))
+	LocalResource(joinpath(figdir, "observations01.jpg"))
 
 end
 
@@ -435,25 +468,25 @@ if usebasemap
     urcrnrlon = maxlon, urcrnrlat = maxlat, resolution = "i") 
 
 	sc = m.scatter(obslon, obslat, latlon=true, s=3, c=obsval, cmap=plt.cm.RdYlBu_r)
-	m.drawlsmask(land_color = ".85", ocean_color = "#CCFFFF"); 
-	m.drawcoastlines(linewidth=.5)
+	m.drawlsmask(land_color = ".85", ocean_color = "w"); 
+	m.drawcoastlines(linewidth=.5, color=".85")
 	m.drawparallels(collect(0.:5.:90.), color="gray", labels=[1,0,0,0])
 	m.drawmeridians(collect(-10.:10.:80.), color="gray", labels=[0,0,0,1])
 	ax2.set_title(figtitleobs)
 	
-	cbar2 = plt.colorbar(scat, shrink=.65)
+	cbar2 = plt.colorbar(sc, shrink=.65)
 	cbar2.set_label(units, rotation=0, ha="left")
 	
-	plt.savefig(joinpath(figdir, "observations.jpg"))
+	plt.savefig(joinpath(figdir, "observations02.jpg"))
 	plt.close(fig2)
 
-	LocalResource(joinpath(figdir, "observations.jpg"))
+	LocalResource(joinpath(figdir, "observations02.jpg"))
 
 end
 
 # ╔═╡ 888ba762-4101-4139-88e9-8978d734f1cd
 md"""
-## DIVAnd interpolation
+## `DIVAnd` interpolation
 """
 
 # ╔═╡ ee28b85c-dd78-4edc-bacc-8cf0e8f1d6d5
@@ -491,6 +524,8 @@ end
 # ╔═╡ 38518967-9544-4ab3-b881-3962de5e368c
 md"""
 ### Analysis parameters
+- Correlation length
+- Noise-to-signal ratio
 """
 
 # ╔═╡ d2c1848d-87ec-42da-9525-315c787ce5d8
@@ -514,10 +549,12 @@ outputfile = joinpath(outputdir, "Argo_DIVAnd_$(parameter)_$(regionname)_$(Dates
 # ╔═╡ 635c8b69-3e30-4ddd-b6df-1c90e8a516b9
 md"""
 ### Select the bathymetry file
+- GEBCO for medium to large areas and 
+- EMODnet Bathymetry for coastal applications.
 """
 
 # ╔═╡ 79a50ac3-a5c1-499e-801d-eebc7501d2bb
-bathname = joinpath(datadir, "gebco_30sec_16.nc")
+bathymetryfile = joinpath(datadir, "gebco_30sec_16.nc")
 
 # ╔═╡ b8b9a325-b647-4e19-bb95-a768e1c457c3
 md"""
@@ -564,10 +601,7 @@ md"""
     (obslon,obslat,obsdepth,obsdates), obsval,
     len, epsilon2,
     outputfile,parameter,
-    bathname=joinpath(datadir, "gebco_30sec_16.nc"),
-    fitcorrlen = false,
-    niter_e = 2,
-    surfextend = true
+    bathname=bathymetryfile
     );
 
 # ╔═╡ d708b881-8678-40cc-8a07-0513a41159c6
@@ -686,12 +720,17 @@ if usebasemap
 end
 
 # ╔═╡ 0674379d-a171-4511-988e-4c917b50974e
+# ╠═╡ disabled = true
+#=╠═╡
 md"""
 ## Results on a map
 The 2D field is converted to geoJSON so it can be ingested by Leaflet.
 """
+  ╠═╡ =#
 
 # ╔═╡ bf33dcb0-cae6-4835-80bf-d649904b7a84
+# ╠═╡ disabled = true
+#=╠═╡
 """
 	field2json(lonr, latr, field2D, thelevels)
 """
@@ -718,8 +757,11 @@ function field2json(lonr, latr, field2D, thelevels; valex=-999.)
     
     return JSON3.write(geojsonfield, allow_inf=false)
 end
+  ╠═╡ =#
 
 # ╔═╡ 5258b923-3346-4ecc-aabc-da11e3fa6ae9
+# ╠═╡ disabled = true
+#=╠═╡
 """
 	field2jsonlinestring(lonr, latr, field2D, thelevels)
 """
@@ -743,8 +785,10 @@ function field2jsonlinestring(lonr, latr, field2D, thelevels; valex=-999.)
     
     return JSON3.write(geojsonfield)
 end
+  ╠═╡ =#
 
 # ╔═╡ e6577f5a-00ba-4ea8-bce7-c952b7abc500
+#=╠═╡
 """
 	function write_field_json(lon, lat, field2D, Δvar)
 
@@ -776,18 +820,12 @@ function write_field_json(lon, lat, field2D::Matrix{AbstractFloat}, Δvar::Float
 	return fieldjson, thestring
     
 end;
+  ╠═╡ =#
 
 # ╔═╡ 26dddf63-91a3-4520-9f2c-9a8c654902d5
+#=╠═╡
 fieldjson, colorfunction = write_field_json(lon, lat, field[:,:,depthindex,timeindex], 0.02);
-
-# ╔═╡ 454ffcef-ea5e-4b1c-8ac7-c6bd5e20290b
-fieldjson2 = replace(fieldjson, "\"" => "'")
-
-# ╔═╡ aa8ce299-72c3-4c10-bc5b-2df7b8c55fe2
-fieldjson2
-
-# ╔═╡ 782561ba-18b8-4e75-a8c9-8d7065a12d9e
-typeof(fieldjson)
+  ╠═╡ =#
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -800,14 +838,12 @@ Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 HTTP = "cd3eb016-35fb-5094-929b-558a96fad6f3"
 HypertextLiteral = "ac1192a8-f4b3-4bfe-ba22-af5b92cd3ab2"
 InteractiveUtils = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
-JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
 Markdown = "d6f4376e-aef5-505a-96c1-9c027394607a"
 NCDatasets = "85f8d34a-cbdd-5861-8df4-14fed0d494ab"
 NaNStatistics = "b946abbf-3ea7-4610-9019-9858bfdeaf2d"
 OrderedCollections = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
-Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 PyCall = "438e738f-606a-5dbb-bf0a-cddfbfd45ab0"
 PyPlot = "d330b81b-6aea-500a-939a-2ce795aea3ee"
 
@@ -818,7 +854,6 @@ Contour = "~0.6.3"
 DIVAnd = "~2.7.11"
 HTTP = "~1.10.5"
 HypertextLiteral = "~0.9.5"
-JSON = "~0.21.4"
 JSON3 = "~1.14.0"
 NCDatasets = "~0.14.3"
 NaNStatistics = "~0.6.32"
@@ -834,7 +869,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.10.2"
 manifest_format = "2.0"
-project_hash = "1fc571216fe4e71973bd5ca7bf1aafe995b7d5b0"
+project_hash = "039d551133b4be086941b69619460c53fb5c2d34"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "016833eb52ba2d6bea9fcb50ca295980e728ee24"
@@ -2101,6 +2136,7 @@ version = "17.4.0+2"
 """
 
 # ╔═╡ Cell order:
+# ╟─8fedd67c-80b5-42bb-8c02-c14d278e4e8c
 # ╟─c2f31032-1a7c-4fed-9713-0dd33b02ba37
 # ╠═557eda82-f679-11ee-274e-37137b03fb0f
 # ╟─81791a25-bf35-44ef-b42d-c852b640163c
@@ -2109,10 +2145,9 @@ version = "17.4.0+2"
 # ╠═be148eac-bbba-4929-a5ca-a7735c9b77a9
 # ╟─ff528eed-305f-4f2c-bf4b-c79f3ddd0010
 # ╟─31979a73-1b7f-4e84-9a18-ce8fd808d655
-# ╠═2d812c57-40f6-499b-972f-69be172d1365
-# ╟─de7029a9-a5a5-4cea-82e1-43f596c2b617
+# ╟─2d812c57-40f6-499b-972f-69be172d1365
 # ╟─b9c9921b-b41a-480e-b0ac-fca6e652dc22
-# ╟─3de1e314-10a2-4604-9c2d-dda5e95e01b4
+# ╠═3de1e314-10a2-4604-9c2d-dda5e95e01b4
 # ╟─7d195f6e-5308-40b3-9547-6614e96c006a
 # ╟─e7ae81f3-970e-4d3f-936f-3073b1063e5c
 # ╠═e57790e8-35e9-4920-b24b-0b1fe07f42ce
@@ -2121,12 +2156,12 @@ version = "17.4.0+2"
 # ╟─9b9716d9-d363-4e3c-be27-98ddcf9600e6
 # ╟─5915e937-63ae-4ebb-99ce-01bfa9b40b63
 # ╠═1803fa0b-45a4-443a-80d8-054537137f67
+# ╟─181c652b-ef85-402a-9f9b-61eb4f759a58
 # ╠═775ce187-9ce5-4e75-aab8-b2153e7a5c29
 # ╟─0020634a-d792-4ace-bd74-ab565dfaa86d
+# ╟─de7029a9-a5a5-4cea-82e1-43f596c2b617
 # ╠═7e741d55-ea1f-449e-939e-036259742653
-# ╠═2ba4abb7-ae6a-40c0-8c90-ef25b06ef3e0
 # ╟─c35fcaf8-6183-458c-8ff1-f3f2710670ee
-# ╠═8515e21c-0c7d-4f9e-9136-549a2b97bef4
 # ╠═b5d4f777-6ac0-4e84-9179-e96e25f8d542
 # ╟─921f570e-6c64-4b3e-a7c9-beb9db7ef4c9
 # ╟─b64bc67d-ab2e-47a3-9f5f-0092f7917970
@@ -2139,7 +2174,7 @@ version = "17.4.0+2"
 # ╠═05def578-6786-4713-af46-ac58b334f5c7
 # ╠═64055f4f-d453-4535-8cce-02a23ab99275
 # ╠═7b97d3ad-97aa-46bf-8141-15ce7c077863
-# ╟─888ba762-4101-4139-88e9-8978d734f1cd
+# ╠═888ba762-4101-4139-88e9-8978d734f1cd
 # ╠═d9954dc8-c243-4a95-ba50-7768db5b6a82
 # ╟─ee28b85c-dd78-4edc-bacc-8cf0e8f1d6d5
 # ╠═f3f219ba-b73b-460b-ac03-483bff5bf42b
@@ -2148,7 +2183,7 @@ version = "17.4.0+2"
 # ╟─38518967-9544-4ab3-b881-3962de5e368c
 # ╠═d2c1848d-87ec-42da-9525-315c787ce5d8
 # ╟─4696c1e6-8f20-4bf3-8bb9-4a22eee6cbd7
-# ╠═c32ddf96-26aa-43dc-93a5-7f2ab807ff19
+# ╟─c32ddf96-26aa-43dc-93a5-7f2ab807ff19
 # ╟─635c8b69-3e30-4ddd-b6df-1c90e8a516b9
 # ╠═79a50ac3-a5c1-499e-801d-eebc7501d2bb
 # ╟─b8b9a325-b647-4e19-bb95-a768e1c457c3
@@ -2167,7 +2202,7 @@ version = "17.4.0+2"
 # ╠═b0361636-b96f-448a-9449-2774d7a1e86f
 # ╟─d8ea13f6-34b2-4f9e-9d33-f02cffdd9f56
 # ╠═6a3a230c-333b-4828-99b5-6db74df0bd6b
-# ╠═05ae76b2-f489-4264-bd42-9314a8aad0a9
+# ╟─05ae76b2-f489-4264-bd42-9314a8aad0a9
 # ╠═3fe16edc-93b1-48a0-8d3c-5e56e2c13b2b
 # ╠═f72bd266-4559-4895-b753-ced821ffc44e
 # ╟─0674379d-a171-4511-988e-4c917b50974e
@@ -2175,8 +2210,5 @@ version = "17.4.0+2"
 # ╟─5258b923-3346-4ecc-aabc-da11e3fa6ae9
 # ╟─e6577f5a-00ba-4ea8-bce7-c952b7abc500
 # ╠═26dddf63-91a3-4520-9f2c-9a8c654902d5
-# ╟─454ffcef-ea5e-4b1c-8ac7-c6bd5e20290b
-# ╠═aa8ce299-72c3-4c10-bc5b-2df7b8c55fe2
-# ╠═782561ba-18b8-4e75-a8c9-8d7065a12d9e
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
