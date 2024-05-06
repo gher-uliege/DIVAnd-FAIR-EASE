@@ -29,14 +29,13 @@ Select one of the two following methods:
 or
 - Using the Pkg module:
 ```julia
-julia> using Pkg.add("Pluto")
+julia> using Pkg; Pkg.add("Pluto")
 ```
 
 ## Run the code
 
 In a Julia session:
 ```julia
-using Pkg; Pkg.add("Pluto")
 using Pluto
 Pluto.run()
 ```
@@ -51,4 +50,8 @@ This command should issue a message such as:
 ```
 and the notebook interface got open in your browser.    
 
+![Screenshot from 2024-05-06 20-10-39](https://github.com/gher-uliege/DIVAnd-FAIR-EASE/assets/11868914/3b33445d-3685-4599-b94f-24ec105fd3f2)
+
 Select the file called `get_argo_data_pluto.jl`.
+
+
