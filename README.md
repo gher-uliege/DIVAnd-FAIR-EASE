@@ -4,9 +4,31 @@ This repository stores the notebooks (`Jupyter` and `Pluto`) for the data downlo
 
 ## Installation
 
-* Julia: 
+### Julia
+
+Instructions from https://julialang.org/downloads/
+
+- Linux and MacOS
 ```bash
 curl -fsSL https://install.julialang.org | sh
+```
+
+- Windows
+```bash
+winget install julia -s msstore
+```
+
+### Pluto 
+
+Select one of the two following methods:
+
+- Using the package REPL (pressing the `]` key at the Julian REPL prompt) or 
+```julia
+(@v1.10) pkg> add Pluto
+```
+- Using the Pkg module:
+```julia
+julia> using Pkg.add("Pluto")
 ```
 
 ## Run the code
