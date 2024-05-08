@@ -20,6 +20,7 @@ begin
 	using JSON3
 	using Dates
 	using NCDatasets
+	using Printf
 	using OrderedCollections
 	using PyPlot
 	const plt = PyPlot
@@ -52,6 +53,9 @@ html"""
 	}
 </style>
 """
+
+# ╔═╡ bf63b1cf-fae2-467d-a3c1-554380ad5ba3
+
 
 # ╔═╡ c2f31032-1a7c-4fed-9713-0dd33b02ba37
 md"""
@@ -142,10 +146,10 @@ We create a dictionary with the variable names and their units.
 """
 
 # ╔═╡ e57790e8-35e9-4920-b24b-0b1fe07f42ce
-variableunits = Dict("sea_water_temperature"=> "degree_Celsius", 
-					 "sea_water_salinity"=>"psu", 
-					 "mass_concentration_of_chlorophyll_a_in_sea_water"=>"mg/m3",   
-					 "moles_of_nitrate_per_unit_mass_in_sea_water"=>"micromole/kg");
+variableunits = Dict("sea_water_temperature" => "degree_Celsius", 
+					 "sea_water_salinity" => "psu", 
+					 "mass_concentration_of_chlorophyll_a_in_sea_water" => "mg/m3",   
+					 "moles_of_nitrate_per_unit_mass_in_sea_water" => "micromole/kg");
 
 # ╔═╡ 9d3aa9d8-ab25-48b3-aede-428c9d960815
 @bind parameter Select(["sea_water_temperature",  "sea_water_salinity", 
@@ -672,7 +676,7 @@ field2D = @view field[:,:,depthindex,timeindex];
 # ╔═╡ 05ae76b2-f489-4264-bd42-9314a8aad0a9
 figtitle = """
 DIVAnd analysis: Argo $(regionname): $(parameter) at $(depthr[depthindex]) m
-Period: $(Dates.monthname(monthlist[monthindex][1])) - $(Dates.monthname(monthlist[monthindex][end])) $(yearlist[yearindex][1]) - $(yearlist[yearindex][end])"""
+Period: $(Dates.monthname(monthlist[monthindex][1])) - $(Dates.monthname(monthlist[monthindex][end])) $(yearlist[yearindex][1]) - $(yearlist[yearindex][end])""";
 
 # ╔═╡ 3fe16edc-93b1-48a0-8d3c-5e56e2c13b2b
 if usecartopy
@@ -844,6 +848,7 @@ NCDatasets = "85f8d34a-cbdd-5861-8df4-14fed0d494ab"
 NaNStatistics = "b946abbf-3ea7-4610-9019-9858bfdeaf2d"
 OrderedCollections = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 PyCall = "438e738f-606a-5dbb-bf0a-cddfbfd45ab0"
 PyPlot = "d330b81b-6aea-500a-939a-2ce795aea3ee"
 
@@ -867,9 +872,9 @@ PyPlot = "~2.11.2"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.10.2"
+julia_version = "1.10.3"
 manifest_format = "2.0"
-project_hash = "039d551133b4be086941b69619460c53fb5c2d34"
+project_hash = "45f6beb4730218e9114464d2b5a218e1ebc5ac3b"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "016833eb52ba2d6bea9fcb50ca295980e728ee24"
@@ -1064,7 +1069,7 @@ weakdeps = ["Dates", "LinearAlgebra"]
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
-version = "1.1.0+0"
+version = "1.1.1+0"
 
 [[deps.CompositionsBase]]
 git-tree-sha1 = "802bb88cd69dfd1509f6670416bd4434015693ad"
@@ -2137,6 +2142,7 @@ version = "17.4.0+2"
 
 # ╔═╡ Cell order:
 # ╟─8fedd67c-80b5-42bb-8c02-c14d278e4e8c
+# ╠═bf63b1cf-fae2-467d-a3c1-554380ad5ba3
 # ╟─c2f31032-1a7c-4fed-9713-0dd33b02ba37
 # ╠═557eda82-f679-11ee-274e-37137b03fb0f
 # ╟─81791a25-bf35-44ef-b42d-c852b640163c
@@ -2147,10 +2153,10 @@ version = "17.4.0+2"
 # ╟─31979a73-1b7f-4e84-9a18-ce8fd808d655
 # ╟─2d812c57-40f6-499b-972f-69be172d1365
 # ╟─b9c9921b-b41a-480e-b0ac-fca6e652dc22
-# ╠═3de1e314-10a2-4604-9c2d-dda5e95e01b4
+# ╟─3de1e314-10a2-4604-9c2d-dda5e95e01b4
 # ╟─7d195f6e-5308-40b3-9547-6614e96c006a
 # ╟─e7ae81f3-970e-4d3f-936f-3073b1063e5c
-# ╠═e57790e8-35e9-4920-b24b-0b1fe07f42ce
+# ╟─e57790e8-35e9-4920-b24b-0b1fe07f42ce
 # ╟─9d3aa9d8-ab25-48b3-aede-428c9d960815
 # ╟─f7510e4d-5814-4511-bcc3-27df3db89a30
 # ╟─9b9716d9-d363-4e3c-be27-98ddcf9600e6
@@ -2174,7 +2180,7 @@ version = "17.4.0+2"
 # ╠═05def578-6786-4713-af46-ac58b334f5c7
 # ╠═64055f4f-d453-4535-8cce-02a23ab99275
 # ╠═7b97d3ad-97aa-46bf-8141-15ce7c077863
-# ╠═888ba762-4101-4139-88e9-8978d734f1cd
+# ╟─888ba762-4101-4139-88e9-8978d734f1cd
 # ╠═d9954dc8-c243-4a95-ba50-7768db5b6a82
 # ╟─ee28b85c-dd78-4edc-bacc-8cf0e8f1d6d5
 # ╠═f3f219ba-b73b-460b-ac03-483bff5bf42b
