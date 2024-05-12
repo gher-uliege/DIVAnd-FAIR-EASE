@@ -55,14 +55,29 @@ html"""
 """
 
 # ╔═╡ bf63b1cf-fae2-467d-a3c1-554380ad5ba3
+md"""
+!!! note "ok"
+	oko
 
+!!! tip "okokoko"
+	ouoiou
+
+!!! warning "ijijij"
+	ouojnoenv orn
+!!! hint "ijijij"
+	ouojnoenv orn
+!!! error "ojoj"
+	ifji
+"""
 
 # ╔═╡ c2f31032-1a7c-4fed-9713-0dd33b02ba37
 md"""
 # Interpolation of Argo profilers data
 In this notebook we download Argo data using the [`Beacon`](https://beacon.maris.nl/) API and then create gridded fields using the [`DIVAnd`](https://github.com/gher-uliege/DIVAnd.jl) software tool. 
 
-In Pluto notebooks, all the cells are run directly, then if you modify one cell, all the cells depending on the modified one will be re-run.
+!!! info "Reactivity ⚡"
+
+	In Pluto notebooks, all the cells are run directly, then if you modify one cell, all the cells depending on the modified one will be re-run.
 
 ## 📦📦 Package installation
 1. The packages will be automatically downloaded if needed.
@@ -70,10 +85,11 @@ In Pluto notebooks, all the cells are run directly, then if you modify one cell,
 3. Their version and dependencies will be written in the notebook file (not visible in the interface).
 """
 
-# ╔═╡ 81791a25-bf35-44ef-b42d-c852b640163c
+# ╔═╡ ba962cb7-46c5-4b6e-8963-d4ab171f8d0a
 md"""
-### 🔗 Set Beacon url 
-If we don't want to show it, we keep it as an environment variable (other options exist).
+!!! tip "Beacon URL"
+
+	If we don't want to show it explicitly, we can store it as an environment variable (other options exist).
 """
 
 # ╔═╡ 4a823c93-6120-4204-ba4d-3b5558fc8e8d
@@ -158,7 +174,8 @@ variableunits = Dict("sea_water_temperature" => "degree_Celsius",
 # ╔═╡ f7510e4d-5814-4511-bcc3-27df3db89a30
 md"""
 ### 📏 Units
-The units are updated everytime the variable name is modified.
+!!! tip " "
+	The units are updated everytime the variable name is modified.
 """
 
 # ╔═╡ 9b9716d9-d363-4e3c-be27-98ddcf9600e6
@@ -168,17 +185,31 @@ The units are updated everytime the variable name is modified.
 # ╔═╡ 5915e937-63ae-4ebb-99ce-01bfa9b40b63
 md"""
 ### 📆 Period of interest
+#### Start date
 """
 
-# ╔═╡ 1803fa0b-45a4-443a-80d8-054537137f67
-begin
-	datestart = Dates.Date(2005, 1, 1)
-	dateend = Dates.Date(2015, 12, 31)
-end
+# ╔═╡ d5334600-ab0d-45f6-ac32-5bf8efe290ed
+@bind datestart html"<input type=date value='2000-01-01' min='1800-01-01' max='2100-12-31'>"
+
+# ╔═╡ 3f691b9a-258b-4d5d-bf03-15e830d6620e
+md"""
+#### End date
+"""
+
+# ╔═╡ a365ae24-a6c4-43e1-9f70-de2e9d9573a1
+@bind dateend html"<input type=date value='2010-12-31' min='1800-01-01' max='2100-12-31'>"
+
+# ╔═╡ 03e89178-8a40-4543-8d4f-35df8715bd2e
+(dateend - DateTime(1950, 1, 1)).value
+
+# ╔═╡ 5c1c07b1-ce47-4f15-9c31-3d5258a22afc
+( Date(dateend) - Date(1950, 1, 1)).value
 
 # ╔═╡ 181c652b-ef85-402a-9f9b-61eb4f759a58
 md"""
 ### 🗺️ Domain and depth range
+!!! info " "
+	The domain is set from the selected region of interest.
 """
 
 # ╔═╡ 775ce187-9ce5-4e75-aab8-b2153e7a5c29
@@ -194,7 +225,8 @@ end
 # ╔═╡ 0020634a-d792-4ace-bd74-ab565dfaa86d
 md"""
 ## Query based on input fields
-We use the function `prepare_query` defined in the next cell.
+!!! info " "
+	We use the function `prepare_query` defined in the next cell. The function definition is hidden but can be viewed by clicking on the _eye_ button. 
 """
 
 # ╔═╡ de7029a9-a5a5-4cea-82e1-43f596c2b617
@@ -250,6 +282,12 @@ dateref::Date=Dates.Date(1950, 1, 1))
     body = JSON3.write(paramdict)
     return body::String
 end
+
+# ╔═╡ d65ef7a4-b404-47cc-a789-7138ad800705
+md"""
+!!! info "@time macro"
+	Adding `@time` before a command will provide you with the execution time of that command
+"""
 
 # ╔═╡ 7e741d55-ea1f-449e-939e-036259742653
 @time query = prepare_query(parameter, units, datestart, dateend, 
@@ -318,6 +356,7 @@ end
 # ╔═╡ 37ad43bd-432d-49f7-8d48-27e9831a3111
 md"""
 ### 🌍 Interactive map ([`Leaflet`](https://leafletjs.com/))
+The coordinates obtained from the netCDF file are directly fed into Leaflet.
 """
 
 # ╔═╡ a2d61983-0042-405f-ada9-1024e86c1644
@@ -419,6 +458,7 @@ md"""
 # ╔═╡ 21aa2085-6c2e-41b8-97bc-e6eae39c924e
 md"""
 ## 🎨 Make plot
+The plots are enabled by clicking on the buttons in the `Options for the plots` cell.
 ### Create figure title
 """
 
@@ -2145,7 +2185,7 @@ version = "17.4.0+2"
 # ╠═bf63b1cf-fae2-467d-a3c1-554380ad5ba3
 # ╟─c2f31032-1a7c-4fed-9713-0dd33b02ba37
 # ╠═557eda82-f679-11ee-274e-37137b03fb0f
-# ╟─81791a25-bf35-44ef-b42d-c852b640163c
+# ╟─ba962cb7-46c5-4b6e-8963-d4ab171f8d0a
 # ╠═4a823c93-6120-4204-ba4d-3b5558fc8e8d
 # ╟─e2c7e580-9202-4b4c-a41d-f00aff0f282f
 # ╠═be148eac-bbba-4929-a5ca-a7735c9b77a9
@@ -2161,11 +2201,16 @@ version = "17.4.0+2"
 # ╟─f7510e4d-5814-4511-bcc3-27df3db89a30
 # ╟─9b9716d9-d363-4e3c-be27-98ddcf9600e6
 # ╟─5915e937-63ae-4ebb-99ce-01bfa9b40b63
-# ╠═1803fa0b-45a4-443a-80d8-054537137f67
+# ╟─d5334600-ab0d-45f6-ac32-5bf8efe290ed
+# ╟─3f691b9a-258b-4d5d-bf03-15e830d6620e
+# ╠═a365ae24-a6c4-43e1-9f70-de2e9d9573a1
+# ╠═03e89178-8a40-4543-8d4f-35df8715bd2e
+# ╠═5c1c07b1-ce47-4f15-9c31-3d5258a22afc
 # ╟─181c652b-ef85-402a-9f9b-61eb4f759a58
 # ╠═775ce187-9ce5-4e75-aab8-b2153e7a5c29
 # ╟─0020634a-d792-4ace-bd74-ab565dfaa86d
-# ╟─de7029a9-a5a5-4cea-82e1-43f596c2b617
+# ╠═de7029a9-a5a5-4cea-82e1-43f596c2b617
+# ╟─d65ef7a4-b404-47cc-a789-7138ad800705
 # ╠═7e741d55-ea1f-449e-939e-036259742653
 # ╟─c35fcaf8-6183-458c-8ff1-f3f2710670ee
 # ╠═b5d4f777-6ac0-4e84-9179-e96e25f8d542
