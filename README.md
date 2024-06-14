@@ -1,5 +1,6 @@
-![Commit](https://img.shields.io/github/last-commit/gher-uliege/DIVAnd-FAIR-EASE) ![GitHub top language](https://img.shields.io/github/languages/top/gher-uliege/DIVAnd-FAIR-EASE)     
-![Static Badge](https://img.shields.io/badge/Project-FAIR--EASE-blue)
+![GitHub top language](https://img.shields.io/github/languages/top/gher-uliege/DIVAnd-FAIR-EASE)       
+![GitHub issues](https://img.shields.io/github/issues/gher-uliege/DIVAnd-FAIR-EASE) ![GitHub all releases](https://img.shields.io/github/downloads/gher-uliege/DIVAnd-FAIR-EASE/total) ![GitHub contributors](https://img.shields.io/github/contributors/gher-uliege/DIVAnd-FAIR-EASE) ![GitHub last commit](https://img.shields.io/github/last-commit/gher-uliege/DIVAnd-FAIR-EASE)      
+[![Static Badge](https://img.shields.io/badge/Project-FAIR--EASE-blue)](https://fairease.eu/)     
 
 This repository stores the notebooks (`Jupyter` and `Pluto`) for the data download with [`Beacon`](https://beacon-argo.maris.nl/swagger/) and the gridding with [`DIVAnd`](https://github.com/gher-uliege/DIVAnd.jl) in the frame of the [FAIR-EASE](https://fairease.eu/) project.
 
