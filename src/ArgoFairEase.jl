@@ -2,6 +2,7 @@ module ArgoFairEase
 
 using HTTP
 using JSON3
+using GeoJSON
 using Colors
 using Contour
 using Dates
@@ -17,7 +18,7 @@ mpl = pyimport("matplotlib")
 """
     prepare_query(parameter, unit, datestart, dateend, mindepth, maxdept, minlon, maxlon, minlat, maxlat)
 
-Prepare the JSON query that will be passed to the API.
+Prepare the JSON query that will be passed to the API, based on the data, depth and coordinate ranges.
 """
 function prepare_query(parameter::String, unit::String, datestart::Date, dateend::Date, 
         mindepth::Float64, maxdepth::Float64, minlon::Float64, maxlon::Float64, minlat::Float64, maxlat::Float64;
@@ -63,6 +64,60 @@ function prepare_query(parameter::String, unit::String, datestart::Date, dateend
     body = JSON3.write(paramdict)
     return body::String
 end
+
+"""
+    prepare_query(parameter, unit, datestart, dateend, mindepth, maxdepth, regionpoly)
+
+Prepare the JSON query that will be passed to the API, based on the date and depth ranges, and the 
+coordinate polygon.
+"""
+function prepare_query(parameter::String, unit::String, datestart::Date, dateend::Date, 
+        mindepth::Float64, maxdepth::Float64, regionpoly::Vector{Any};
+        dateref::Date=Dates.Date(1950, 1, 1)
+        )
+
+    mintemporal = (datestart - dateref).value
+    maxtemporal = (dateend - dateref).value
+
+    
+    # Start with an ordered dictionary, then convert to JSON
+    paramdict = OrderedDict(
+    "query_parameters" => [
+    OrderedDict("data_parameter" => parameter,
+        "unit"=> unit,
+        "skip_fill_values" => true,
+        "alias"=> "sea_water_temperature"),
+    OrderedDict("data_parameter"=> "time",
+        "unit"=> "days since 1950-01-01 00:00:00 UTC",
+        "skip_fill_values"=> false,
+        "alias"=> "TEMPORAL"),
+    OrderedDict("data_parameter"=> "sea_water_pressure",
+        "unit"=> "decibar",
+        "include_original_data"=> false,
+        "alias"=> "DEPTH"),
+    OrderedDict("data_parameter"=> "longitude",
+        "unit"=> "degree_east",
+        "skip_fill_values"=> false,
+        "alias"=> "LONGITUDE"),
+    OrderedDict("data_parameter"=> "latitude",
+        "unit"=> "degree_north",
+        "skip_fill_values"=> false,
+        "alias"=> "LATITUDE")],
+    "filters"=> [
+        OrderedDict("for_query_parameter" => Dict("alias"=> "TEMPORAL"), "min"=> mintemporal, "max"=> maxtemporal),
+        OrderedDict("for_query_parameter" => Dict("alias"=> "DEPTH"), "min"=> mindepth, "max"=> maxdepth),
+        OrderedDict("longitude_query_parameter" => Dict("alias"=> "LONGITUDE"), 
+                    "latitude_query_parameter" => Dict("alias"=> "LATITUDE"),
+                    "geometry" => Dict("coordinates" => regionpoly, "type" => "Polygon")
+                    )
+    ],
+    "output" => Dict("format"=> "netcdf")
+    )
+
+    body = JSON3.write(paramdict)
+    return body::String
+end
+
 
 """
     read_netcdf(datafile)
@@ -174,5 +229,29 @@ function write_field_json(lon, lat, field2D::Matrix{AbstractFloat}, Δvar::Float
     return nothing
     
 end
+
+
+"""
+    read_polygon_json(contourfile)
+
+Read the coordinates as a list of tuples stored in the geoJSON file `contourfile`,
+as downloaded from https://geojson.io
+
+# Example
+```julia-repl
+julia> coordlist = read_polygon_json(contourfile)
+```
+"""
+function read_polygon_json(contourfile::AbstractString)
+    coordlist = []
+    jsonbytes = read(contourfile);
+    fc = GeoJSON.read(jsonbytes)
+    for poly in fc
+        coordinates = poly.geometry[1]
+        push!(coordlist, coordinates)
+    end
+    return coordlist
+end
+
 
 end

@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.41
+# v0.19.42
 
 using Markdown
 using InteractiveUtils
@@ -25,6 +25,7 @@ begin
 	using PyPlot
 	const plt = PyPlot
 	using PyCall
+	using Conda
 	using Colors
 	using PlutoUI
 	using Markdown
@@ -54,22 +55,6 @@ html"""
 </style>
 """
 
-# ╔═╡ bf63b1cf-fae2-467d-a3c1-554380ad5ba3
-md"""
-!!! note "ok"
-	oko
-
-!!! tip "okokoko"
-	ouoiou
-
-!!! warning "ijijij"
-	ouojnoenv orn
-!!! hint "ijijij"
-	ouojnoenv orn
-!!! error "ojoj"
-	ifji
-"""
-
 # ╔═╡ c2f31032-1a7c-4fed-9713-0dd33b02ba37
 md"""
 # Interpolation of Argo profilers data
@@ -89,7 +74,9 @@ In this notebook we download Argo data using the [`Beacon`](https://beacon.maris
 md"""
 !!! tip "Beacon URL"
 
-	If we don't want to show it explicitly, we can store it as an environment variable (other options exist).
+	If we don't want to show it explicitly, we can store it as an environment variable (other options exist). 
+
+	Otherwise it can be explicity written in the next cell.
 """
 
 # ╔═╡ 4a823c93-6120-4204-ba4d-3b5558fc8e8d
@@ -112,7 +99,9 @@ end
 # ╔═╡ ff528eed-305f-4f2c-bf4b-c79f3ddd0010
 md"""
 ## Options for the plots
-Plots can be produced using [`Leaflet`](https://leafletjs.com/) (interactive), [`Cartopy`](https://scitools.org.uk/cartopy/docs/latest/) and/or [`Basemap`](https://basemaptutorial.readthedocs.io/en/latest/).
+Plots can be produced using [`Leaflet`](https://leafletjs.com/) (interactive), [`Cartopy`](https://scitools.org.uk/cartopy/docs/latest/) and/or [`Basemap`](https://basemaptutorial.readthedocs.io/en/latest/).     
+
+The necessary packages will installed accordingly.
 """
 
 # ╔═╡ 31979a73-1b7f-4e84-9a18-ce8fd808d655
@@ -128,10 +117,18 @@ end
 
 # ╔═╡ b20b0a42-2f04-4abc-8b37-278d62a42e32
 if usebasemap
-	using Conda
 	Conda.add("basemap");	
 	basemap = pyimport("mpl_toolkits.basemap")
 	Basemap = basemap.Basemap
+end;
+
+# ╔═╡ 05def578-6786-4713-af46-ac58b334f5c7
+if usecartopy
+	Conda.add("cartopy");	
+	ccrs = pyimport("cartopy.crs")
+	cfeature = pyimport("cartopy.feature")
+	coast = cfeature.GSHHSFeature(scale="h")
+	dataproj = ccrs.PlateCarree();
 end;
 
 # ╔═╡ b9c9921b-b41a-480e-b0ac-fca6e652dc22
@@ -198,12 +195,6 @@ md"""
 
 # ╔═╡ a365ae24-a6c4-43e1-9f70-de2e9d9573a1
 @bind dateend html"<input type=date value='2010-12-31' min='1800-01-01' max='2100-12-31'>"
-
-# ╔═╡ 03e89178-8a40-4543-8d4f-35df8715bd2e
-(dateend - DateTime(1950, 1, 1)).value
-
-# ╔═╡ 5c1c07b1-ce47-4f15-9c31-3d5258a22afc
-( Date(dateend) - Date(1950, 1, 1)).value
 
 # ╔═╡ 181c652b-ef85-402a-9f9b-61eb4f759a58
 md"""
@@ -290,7 +281,7 @@ md"""
 """
 
 # ╔═╡ 7e741d55-ea1f-449e-939e-036259742653
-@time query = prepare_query(parameter, units, datestart, dateend, 
+@time query = prepare_query(parameter, units, Date(datestart), Date(dateend), 
     mindepth, maxdepth, minlon, maxlon, minlat, maxlat);
 
 # ╔═╡ c35fcaf8-6183-458c-8ff1-f3f2710670ee
@@ -310,11 +301,15 @@ begin
 		@info("File already downloaded")
 	else
 		@time open(filename, "w") do io
-			HTTP.request("POST", "$(beaconURL)/api/query", 
+			r = HTTP.request("POST", "$(beaconURL)/api/query", 
 		    ["Content-Type" => "application/json"], query,
 		    response_stream=io);
+			@info(r.status)
 		end	
+
 	end;
+
+	@info("NetCDF file size: $(round(filesize(filename)/1000^2, digits=1))M")
 end;
 
 # ╔═╡ 921f570e-6c64-4b3e-a7c9-beb9db7ef4c9
@@ -356,7 +351,11 @@ end
 # ╔═╡ 37ad43bd-432d-49f7-8d48-27e9831a3111
 md"""
 ### 🌍 Interactive map ([`Leaflet`](https://leafletjs.com/))
-The coordinates obtained from the netCDF file are directly fed into Leaflet.
+
+!!! info "Leaflet"
+	The coordinates obtained from the input file (netCDF) are directly fed into Leaflet.            
+
+	Changing the region or the period of interest will automatically update the interactive map.
 """
 
 # ╔═╡ a2d61983-0042-405f-ada9-1024e86c1644
@@ -458,8 +457,12 @@ The coordinates obtained from the netCDF file are directly fed into Leaflet.
 # ╔═╡ 21aa2085-6c2e-41b8-97bc-e6eae39c924e
 md"""
 ## 🎨 Make plot
-The plots are enabled by clicking on the buttons in the `Options for the plots` cell.
+!!! info " "
+	The plots are enabled by clicking on the buttons in the `Options for the plots` cell.
+
+	The images are saved locally, then displayed in the notebook using the `LocalResource` command.
 ### Create figure title
+It is generated from the region name and the variable name.
 """
 
 # ╔═╡ 23eca676-7c99-458a-8999-f799ba5b0222
@@ -467,16 +470,6 @@ begin
 	figtitleobs = """
 		Observations: Argo $(regionname): $(parameter)"""
 end
-
-# ╔═╡ 05def578-6786-4713-af46-ac58b334f5c7
-if usecartopy
-	# using Conda
-	# Conda.add("cartopy");	
-	ccrs = pyimport("cartopy.crs")
-	cfeature = pyimport("cartopy.feature")
-	coast = cfeature.GSHHSFeature(scale="h")
-	dataproj = ccrs.PlateCarree();
-end;
 
 # ╔═╡ 64055f4f-d453-4535-8cce-02a23ab99275
 if usecartopy
@@ -593,16 +586,27 @@ outputfile = joinpath(outputdir, "Argo_DIVAnd_$(parameter)_$(regionname)_$(Dates
 # ╔═╡ 635c8b69-3e30-4ddd-b6df-1c90e8a516b9
 md"""
 ### Select the bathymetry file
-- GEBCO for medium to large areas and 
-- EMODnet Bathymetry for coastal applications.
+- [GEBCO](https://www.gebco.net/) for medium to large areas and 
+- [EMODnet Bathymetry](https://emodnet.ec.europa.eu/en/bathymetry) for coastal applications.
+
+The file is automatically downloaded if it is not yet available.
 """
 
 # ╔═╡ 79a50ac3-a5c1-499e-801d-eebc7501d2bb
-bathymetryfile = joinpath(datadir, "gebco_30sec_16.nc")
+begin 
+	bathymetryfile = joinpath(datadir, "gebco_30sec_16.nc")
+	
+	if isfile(bathymetryfile) 
+		@info("Bathymetry file already downloaded")
+	else
+	download("https://dox.uliege.be/index.php/s/4tel71HR3bjSmNH/download", bathymetryfile)
+	end
+end
 
 # ╔═╡ b8b9a325-b647-4e19-bb95-a768e1c457c3
 md"""
 ### Helper function to generate plots
+The function will be applied at each steps of the interpolation with `diva3d`.
 """
 
 # ╔═╡ 4cb3bb80-2b61-49df-9be5-71d92b56c367
@@ -2182,7 +2186,6 @@ version = "17.4.0+2"
 
 # ╔═╡ Cell order:
 # ╟─8fedd67c-80b5-42bb-8c02-c14d278e4e8c
-# ╠═bf63b1cf-fae2-467d-a3c1-554380ad5ba3
 # ╟─c2f31032-1a7c-4fed-9713-0dd33b02ba37
 # ╠═557eda82-f679-11ee-274e-37137b03fb0f
 # ╟─ba962cb7-46c5-4b6e-8963-d4ab171f8d0a
@@ -2191,6 +2194,8 @@ version = "17.4.0+2"
 # ╠═be148eac-bbba-4929-a5ca-a7735c9b77a9
 # ╟─ff528eed-305f-4f2c-bf4b-c79f3ddd0010
 # ╟─31979a73-1b7f-4e84-9a18-ce8fd808d655
+# ╠═b20b0a42-2f04-4abc-8b37-278d62a42e32
+# ╠═05def578-6786-4713-af46-ac58b334f5c7
 # ╟─2d812c57-40f6-499b-972f-69be172d1365
 # ╟─b9c9921b-b41a-480e-b0ac-fca6e652dc22
 # ╟─3de1e314-10a2-4604-9c2d-dda5e95e01b4
@@ -2203,13 +2208,11 @@ version = "17.4.0+2"
 # ╟─5915e937-63ae-4ebb-99ce-01bfa9b40b63
 # ╟─d5334600-ab0d-45f6-ac32-5bf8efe290ed
 # ╟─3f691b9a-258b-4d5d-bf03-15e830d6620e
-# ╠═a365ae24-a6c4-43e1-9f70-de2e9d9573a1
-# ╠═03e89178-8a40-4543-8d4f-35df8715bd2e
-# ╠═5c1c07b1-ce47-4f15-9c31-3d5258a22afc
+# ╟─a365ae24-a6c4-43e1-9f70-de2e9d9573a1
 # ╟─181c652b-ef85-402a-9f9b-61eb4f759a58
 # ╠═775ce187-9ce5-4e75-aab8-b2153e7a5c29
 # ╟─0020634a-d792-4ace-bd74-ab565dfaa86d
-# ╠═de7029a9-a5a5-4cea-82e1-43f596c2b617
+# ╟─de7029a9-a5a5-4cea-82e1-43f596c2b617
 # ╟─d65ef7a4-b404-47cc-a789-7138ad800705
 # ╠═7e741d55-ea1f-449e-939e-036259742653
 # ╟─c35fcaf8-6183-458c-8ff1-f3f2710670ee
@@ -2221,8 +2224,6 @@ version = "17.4.0+2"
 # ╟─a2d61983-0042-405f-ada9-1024e86c1644
 # ╟─21aa2085-6c2e-41b8-97bc-e6eae39c924e
 # ╟─23eca676-7c99-458a-8999-f799ba5b0222
-# ╠═b20b0a42-2f04-4abc-8b37-278d62a42e32
-# ╠═05def578-6786-4713-af46-ac58b334f5c7
 # ╠═64055f4f-d453-4535-8cce-02a23ab99275
 # ╠═7b97d3ad-97aa-46bf-8141-15ce7c077863
 # ╟─888ba762-4101-4139-88e9-8978d734f1cd
