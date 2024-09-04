@@ -16,33 +16,53 @@ mpl = pyimport("matplotlib")
 
 
 """
-    prepare_query_new(parameter1, parameter2, datestart, dateend, mindepth, maxdept, minlon, maxlon, minlat, maxlat)
+    prepare_query_new(parameter1, parameter2, datestart, dateend, mindepth, maxdepth, minlon, maxlon, minlat, maxlat)
 
 Prepare the JSON query that will be passed to the API, based on the data, depth and coordinate ranges.
 """
-function prepare_query(parameter1::String, parameter2::String, datestart::Date, dateend::Date, 
+function prepare_query_new(datasource::AbstractString, parameter1::String, parameter2::String, datestart::Date, dateend::Date, 
         mindepth::Float64, maxdepth::Float64, minlon::Float64, maxlon::Float64, 
         minlat::Float64, maxlat::Float64; dateref::Date=Dates.Date(1950, 1, 1)
         )
 
     mintemporal = (datestart - dateref).value
     maxtemporal = (dateend - dateref).value
-    
-    paramdict = OrderedDict(
-        "query_parameters" => [
-            OrderedDict("column_name" => parameter1, "alias" => parameter, "optional" => false),
+
+    if datasource == "Euro-Argo"
+        queryparams = [
+            OrderedDict("column_name" => parameter1, "alias" => parameter1, "optional" => false),
             OrderedDict("column_name" => parameter2, "alias" => parameter2, "optional" => true),
             OrderedDict("column_name" => "JULD", "alias" => "TIME"),
             OrderedDict("column_name" => "PRES", "alias" => "DEPTH"),
             OrderedDict("column_name" => "LONGITUDE", "alias" => "LONGITUDE"),
             OrderedDict("column_name" => "LATITUDE", "alias" => "LATITUDE"),
-        ],
-        "filters"=> [
-            OrderedDict("for_query_parameter" => "TIME", "min" => mintemporal, "max" => maxtemporal),
-            OrderedDict("for_query_parameter" => "DEPTH", "min" => mindepth, "max" => maxdepth),
-            OrderedDict("for_query_parameter" => "LONGITUDE", "min" => minlon, "max" => maxlon),
-            OrderedDict("for_query_parameter" => "LATITUDE", "min" => minlat, "max" => maxlat)
-        ],
+        ]
+    elseif datasource == "World Ocean Database"
+        queryparams = [
+            OrderedDict("column_name" => parameter1, "alias" => parameter1),
+            OrderedDict("column_name" => "time", "alias" => "TIME"),
+            OrderedDict("column_name" => "z", "alias" => "DEPTH"),
+            OrderedDict("column_name" => "lon", "alias" => "LONGITUDE"),
+            OrderedDict("column_name" => "lat", "alias" => "LATITUDE"),
+            OrderedDict("column_name" => "dataset", "alias" => "DATASET", "optional" => true),
+            OrderedDict("column_name" => "WOD_cruise_identifier", "alias" => "cruise-identifier", "optional" => true),
+            OrderedDict("column_name" => "wod_unique_cast", "alias" => "cast", "optional" => true),
+            OrderedDict("column_name" => "WMO_ID", "alias" => "WMO_ID", "optional" => true),
+            OrderedDict("column_name" => "country", "alias" => "country", "optional" => true)
+        ]
+    end
+
+    # Filters for the coordinates
+    filters = [
+        OrderedDict("for_query_parameter" => "TIME", "min" => mintemporal, "max" => maxtemporal),
+        OrderedDict("for_query_parameter" => "DEPTH", "min" => mindepth, "max" => maxdepth),
+        OrderedDict("for_query_parameter" => "LONGITUDE", "min" => minlon, "max" => maxlon),
+        OrderedDict("for_query_parameter" => "LATITUDE", "min" => minlat, "max" => maxlat)
+    ]
+    
+    paramdict = OrderedDict(
+        "query_parameters" => queryparams,
+        "filters" => filters,
         "output" => Dict("format"=> "netcdf")
     )
     body = JSON3.write(paramdict);
