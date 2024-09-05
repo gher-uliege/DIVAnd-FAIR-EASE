@@ -25,19 +25,15 @@ function prepare_query_new(datasource::AbstractString, parameter1::String, param
         minlat::Float64, maxlat::Float64; dateref::Date=Dates.Date(1950, 1, 1)
         )
 
+    # The reference data can change according to the datasource!
+    if datasource == "World Ocean Database"
+        dateref = Dates.Date(1770, 1, 1)
+    end
+
     mintemporal = (datestart - dateref).value
     maxtemporal = (dateend - dateref).value
 
-    if datasource == "Euro-Argo"
-        queryparams = [
-            OrderedDict("column_name" => parameter1, "alias" => parameter1, "optional" => false),
-            OrderedDict("column_name" => parameter2, "alias" => parameter2, "optional" => true),
-            OrderedDict("column_name" => "JULD", "alias" => "TIME"),
-            OrderedDict("column_name" => "PRES", "alias" => "DEPTH"),
-            OrderedDict("column_name" => "LONGITUDE", "alias" => "LONGITUDE"),
-            OrderedDict("column_name" => "LATITUDE", "alias" => "LATITUDE"),
-        ]
-    elseif datasource == "World Ocean Database"
+    if datasource == "World Ocean Database"
         queryparams = [
             OrderedDict("column_name" => parameter1, "alias" => parameter1),
             OrderedDict("column_name" => "time", "alias" => "TIME"),
@@ -50,15 +46,52 @@ function prepare_query_new(datasource::AbstractString, parameter1::String, param
             OrderedDict("column_name" => "WMO_ID", "alias" => "WMO_ID", "optional" => true),
             OrderedDict("column_name" => "country", "alias" => "country", "optional" => true)
         ]
+
+    elseif datasource == "SeaDataNet CDI TS"
+        queryparams = [
+            OrderedDict("column_name" => parameter1, "alias" => parameter1),
+            OrderedDict("column_name" => "yyyy-mm-ddThh:mm:ss.sss", "alias" => "TIME"),
+            OrderedDict("column_name" => "Depth", "alias" => "DEPTH"), 
+            OrderedDict("column_name" => "Longitude", "alias" => "LONGITUDE"),
+            OrderedDict("column_name" => "Latitude", "alias" => "LATITUDE")
+        ]
+    
+    elseif occursin("CORA", datasource)
+        @info("Working with CORA dataset")
+        queryparams = [
+            OrderedDict("column_name" => parameter1, "alias" => parameter1),
+            OrderedDict("column_name" => "JULD", "alias" => "TIME"),
+            OrderedDict("column_name" => "DEPH", "alias" => "DEPTH"),
+            OrderedDict("column_name" => "LONGITUDE", "alias" => "LONGITUDE"),
+            OrderedDict("column_name" => "LATITUDE", "alias" => "LATITUDE"),
+        ]
+    else
+        queryparams = [
+            OrderedDict("column_name" => parameter1, "alias" => parameter1, "optional" => false),
+            OrderedDict("column_name" => parameter2, "alias" => parameter2, "optional" => true),
+            OrderedDict("column_name" => "JULD", "alias" => "TIME"),
+            OrderedDict("column_name" => "PRES", "alias" => "DEPTH"),
+            OrderedDict("column_name" => "LONGITUDE", "alias" => "LONGITUDE"),
+            OrderedDict("column_name" => "LATITUDE", "alias" => "LATITUDE"),
+        ]
     end
 
     # Filters for the coordinates
-    filters = [
-        OrderedDict("for_query_parameter" => "TIME", "min" => mintemporal, "max" => maxtemporal),
-        OrderedDict("for_query_parameter" => "DEPTH", "min" => mindepth, "max" => maxdepth),
-        OrderedDict("for_query_parameter" => "LONGITUDE", "min" => minlon, "max" => maxlon),
-        OrderedDict("for_query_parameter" => "LATITUDE", "min" => minlat, "max" => maxlat)
-    ]
+    if datasource == "SeaDataNet CDI TS"
+        filters = [
+            OrderedDict("for_query_parameter" =>  "TIME", "min" => Dates.format(datestart, "yyyymmddT00:00:00"), "max" => Dates.format(dateend, "yyyymmddT00:00:00")),
+            OrderedDict("for_query_parameter" =>  "DEPTH", "min" => mindepth, "max" => maxdepth),
+            OrderedDict("for_query_parameter" =>  "LONGITUDE", "min" => minlon, "max" => maxlon), 
+            OrderedDict("for_query_parameter" =>  "LATITUDE", "min" => minlat, "max" => maxlat)
+        ]
+    else
+        filters = [
+            OrderedDict("for_query_parameter" => "TIME", "min" => mintemporal, "max" => maxtemporal),
+            OrderedDict("for_query_parameter" => "DEPTH", "min" => mindepth, "max" => maxdepth),
+            OrderedDict("for_query_parameter" => "LONGITUDE", "min" => minlon, "max" => maxlon),
+            OrderedDict("for_query_parameter" => "LATITUDE", "min" => minlat, "max" => maxlat)
+        ]
+    end
     
     paramdict = OrderedDict(
         "query_parameters" => queryparams,
