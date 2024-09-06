@@ -1,4 +1,4 @@
-module ArgoFairEase
+module DIVAndFairEase
 
 using HTTP
 using JSON3
