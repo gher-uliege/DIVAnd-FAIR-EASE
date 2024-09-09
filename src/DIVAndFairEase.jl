@@ -1,6 +1,7 @@
 module DIVAndFairEase
 
 using HTTP
+using JSON
 using JSON3
 using GeoJSON
 using Colors
@@ -14,6 +15,41 @@ const plt = PyPlot
 using PyCall
 mpl = pyimport("matplotlib")
 
+"""
+    varbyunits(footprintfile, units)
+
+Return a list of variables (Strings) which have the units specified in the vector `units` from the file `footprintfile`.
+
+# Example
+```julia-repl
+julia> temperature_variables = varbyunits("Footprint_CMEMS_BGC.json", ["degree_Celsius", "degrees_C"])
+8-element Vector{Any}:
+ "PHTX"
+ "TEMP_DOXY"
+ "TEMP_ADJUSTED_ERROR"
+ "TEMP_ADJUSTED"
+ "POTENTIAL_TEMP"
+ "TEMP_ERROR"
+ "TEMP"
+ "TEMP_CNDC"
+```
+"""
+function varbyunits(footprintfile::String, units::Vector{String})
+    # Read the footprintfile
+    data = JSON.parsefile(footprintfile);
+
+    varlist = []
+    for (key, value) in data["unique_column_attributes"]
+        if haskey(value, "units")
+            theunits = value["units"][1]
+            @debug(theunits)
+            if theunits in units
+               push!(varlist, key)
+            end
+        end
+    end
+    return varlist
+end
 
 """
     prepare_query_new(parameter1, parameter2, datestart, dateend, mindepth, maxdepth, minlon, maxlon, minlat, maxlat)
@@ -60,6 +96,16 @@ function prepare_query_new(datasource::AbstractString, parameter1::String, param
         @info("Working with CORA dataset")
         queryparams = [
             OrderedDict("column_name" => parameter1, "alias" => parameter1),
+            OrderedDict("column_name" => "JULD", "alias" => "TIME"),
+            OrderedDict("column_name" => "DEPH", "alias" => "DEPTH"),
+            OrderedDict("column_name" => "LONGITUDE", "alias" => "LONGITUDE"),
+            OrderedDict("column_name" => "LATITUDE", "alias" => "LATITUDE")
+        ]
+    elseif occursin("CMEMS", datasource)
+        @info("Working with CMEMS BGC dataset")
+        queryparams = [
+            OrderedDict("column_name" => parameter1, "alias" => parameter1),
+            OrderedDict("column_name" => parameter1, "column_attribute" => "scale_factor", "alias" => "scale_factor"),
             OrderedDict("column_name" => "JULD", "alias" => "TIME"),
             OrderedDict("column_name" => "DEPH", "alias" => "DEPTH"),
             OrderedDict("column_name" => "LONGITUDE", "alias" => "LONGITUDE"),
