@@ -63,7 +63,7 @@ function prepare_query_new(datasource::AbstractString, parameter1::String, param
             OrderedDict("column_name" => "JULD", "alias" => "TIME"),
             OrderedDict("column_name" => "DEPH", "alias" => "DEPTH"),
             OrderedDict("column_name" => "LONGITUDE", "alias" => "LONGITUDE"),
-            OrderedDict("column_name" => "LATITUDE", "alias" => "LATITUDE"),
+            OrderedDict("column_name" => "LATITUDE", "alias" => "LATITUDE")
         ]
     else
         queryparams = [
@@ -83,6 +83,15 @@ function prepare_query_new(datasource::AbstractString, parameter1::String, param
             OrderedDict("for_query_parameter" =>  "DEPTH", "min" => mindepth, "max" => maxdepth),
             OrderedDict("for_query_parameter" =>  "LONGITUDE", "min" => minlon, "max" => maxlon), 
             OrderedDict("for_query_parameter" =>  "LATITUDE", "min" => minlat, "max" => maxlat)
+        ]
+    elseif occursin("CORA", datasource)
+        @info("Working with CORA dataset")
+        filters = [
+            OrderedDict("for_query_parameter" => "TIME", "min" => mintemporal, "max" => maxtemporal),
+            OrderedDict("for_query_parameter" => "DEPTH", "min" => mindepth, "max" => maxdepth),
+            OrderedDict("for_query_parameter" => "LONGITUDE", "min" => minlon, "max" => maxlon),
+            OrderedDict("for_query_parameter" => "LATITUDE", "min" => minlat, "max" => maxlat),
+            OrderedDict("for_query_parameter" => parameter1, "min" => -2., "max" => 30.)
         ]
     else
         filters = [
