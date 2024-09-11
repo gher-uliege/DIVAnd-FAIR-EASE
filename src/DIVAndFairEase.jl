@@ -64,6 +64,8 @@ function prepare_query_new(datasource::AbstractString, parameter1::String, param
     # The reference data can change according to the datasource!
     if datasource == "World Ocean Database"
         dateref = Dates.Date(1770, 1, 1)
+    elseif datasource == "EMODnet Chemistry" 
+        dateref = Dates.Date(1921, 1, 1)
     end
 
     mintemporal = (datestart - dateref).value
@@ -93,7 +95,6 @@ function prepare_query_new(datasource::AbstractString, parameter1::String, param
         ]
     
     elseif occursin("CORA", datasource)
-        @info("Working with CORA dataset")
         queryparams = [
             OrderedDict("column_name" => parameter1, "alias" => parameter1),
             OrderedDict("column_name" => "JULD", "alias" => "TIME"),
@@ -102,7 +103,6 @@ function prepare_query_new(datasource::AbstractString, parameter1::String, param
             OrderedDict("column_name" => "LATITUDE", "alias" => "LATITUDE")
         ]
     elseif occursin("CMEMS", datasource)
-        @info("Working with CMEMS BGC dataset")
         queryparams = [
             OrderedDict("column_name" => parameter1, "alias" => parameter1),
             OrderedDict("column_name" => parameter1, "column_attribute" => "scale_factor", "alias" => "scale_factor"),
@@ -110,6 +110,14 @@ function prepare_query_new(datasource::AbstractString, parameter1::String, param
             OrderedDict("column_name" => "DEPH", "alias" => "DEPTH"),
             OrderedDict("column_name" => "LONGITUDE", "alias" => "LONGITUDE"),
             OrderedDict("column_name" => "LATITUDE", "alias" => "LATITUDE")
+        ]
+    elseif datasource == "EMODnet Chemistry"
+        queryparams = [
+            OrderedDict("column_name" => parameter1, "alias" => parameter1),
+            OrderedDict("column_name" => "date_time", "alias" => "TIME"), 
+            OrderedDict("column_name" => "Depth", "alias" => "DEPTH"),
+            OrderedDict("column_name" => "longitude", "alias" => "LONGITUDE"),
+            OrderedDict("column_name" => "latitude", "alias" => "LATITUDE")
         ]
     else
         queryparams = [
