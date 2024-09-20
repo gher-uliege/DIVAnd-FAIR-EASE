@@ -1,3 +1,7 @@
+*.js
+*.nc
+
+Footprint/
 src/Footprint/
 data/
 figures/
