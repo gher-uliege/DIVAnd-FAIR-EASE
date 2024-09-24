@@ -1,5 +1,7 @@
 *.js
 *.nc
+*.bak
+*.sav
 
 Footprint/
 src/Footprint/
@@ -32,3 +34,4 @@ docs/site/
 # environment.
 Manifest.toml
 .ipynb_checkpoints/
+.CondaPkg/
