@@ -1,3 +1,5 @@
+.CondaPkg/
+
 *.js
 *.nc
 *.bak
