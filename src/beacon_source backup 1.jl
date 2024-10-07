@@ -16,41 +16,37 @@ end
 
 # ╔═╡ 60447850-c9cb-48d5-9bdb-149d1e893de1
 begin
-    using HTTP
-    using JSON3
-	using JSON
-    using Dates
-    using NCDatasets
-    using Printf
-    using OrderedCollections
-    using PyPlot
-    const plt = PyPlot
-    using PyCall
-    using Conda
-    using Colors
-    using PlutoUI
-	
-    using Markdown
-    using Contour
-    using NaNStatistics
-    using InteractiveUtils
-    using HypertextLiteral
-    mpl = pyimport("matplotlib")
-    mpl.style.use("./fairease.mplstyle")
+        using HTTP
+        using JSON3
+        using Dates
+        using NCDatasets
+        using Printf
+        using OrderedCollections
+        using PyPlot
+        const plt = PyPlot
+        using PyCall
+        using Conda
+        using Colors
+        using PlutoUI
+        using Markdown
+        using Contour
+        using NaNStatistics
+        using InteractiveUtils
+        using HypertextLiteral
+        mpl = pyimport("matplotlib")
+        mpl.style.use("./fairease.mplstyle")
 end
 
 # ╔═╡ 2baa79ff-9a8f-4e5b-8a4d-7d5797c77864
 begin
-    datadir = "../data/"
-    outputdir = "../output/"
-    figdir = "../figures/"
-	footprintdir = "../Footprint"
-    mkpath.([datadir, outputdir, figdir, footprintdir]);
+        datadir = "../data/"
+        outputdir = "../output/"
+        figdir = "../figures/"
+        mkpath.([datadir, outputdir, figdir]);
 end
 
 # ╔═╡ fdb2e8d3-1433-4107-9d8b-990b8dfbcb43
 domaininfo = OrderedDict(
-	"North Adriatic" => [12., 18., 43., 46.],
 	"Arctic region" => [-44.25, 70.0, 56.5, 83.0],
     "North_East_Atlantic" => [-42.0, -0.1, 24.9, 48.0],
     "Baltic_Sea" => [9.4, 30.9, 53.0, 65.9],
@@ -58,7 +54,7 @@ domaininfo = OrderedDict(
     "Mediterranean_Sea" => [-7.0, 36.375, 30.0, 45.875],
     "North_Sea" => [-100., 50., -80., 80.],
     "Canary_Islands" => [-20., -9., 25., 31.5],
-    "World_Ocean" => [-180., 180., -90., 90.]
+    #"World_Ocean" => [-180., 180., -90., 90.]
     );
 
 # ╔═╡ 8960f43e-ad07-4d0d-a2cb-f8c2e7ac9013
@@ -112,7 +108,7 @@ md"""
 # ╔═╡ 9159c1f4-6391-11ef-2178-2bcdb7f92e07
 begin
 	APItoken = ENV["beaconAPItoken"];
-end;
+end
 
 # ╔═╡ f204b1f1-a23b-418f-912a-03dda1b3c401
 begin
@@ -133,10 +129,10 @@ md"""
 """
 
 # ╔═╡ 6d51c3f9-ad07-4059-9105-472214757206
-@bind datasourcelist MultiCheckBox(collect(keys(beacon_services)))
+@bind datasources MultiCheckBox(collect(keys(beacon_services)))
 
 # ╔═╡ a95a842d-1ec2-4a05-a241-0e9be7b48179
-length(datasourcelist) > 0 ? @info("Working with data sources $(datasourcelist)") : @info("Select one or several data sources")
+length(datasources) > 0 ? @info("Working with data sources $(datasources)") : @info("Select one or several data sources")
 
 # ╔═╡ ae1c0a0f-891e-4bda-b762-75c880c21efc
 @bind regionname Select(collect(keys(domaininfo)), default="Baltic_sea")
@@ -153,119 +149,60 @@ end
 
 # ╔═╡ 6d7207d7-ea88-4a14-ac64-7a4a9e7035ee
 """
-    prepare_query(parameter1, parameter2, datestart, dateend, mindepth, maxdepth, minlon, maxlon, minlat, maxlat)
+    prepare_query(parameter, unit, datestart, dateend, mindepth, maxdept, minlon, maxlon, minlat, maxlat)
 
-Prepare the JSON query that will be passed to the API, based on the data, depth and coordinate ranges.
+Prepare the query (JSON) that will be passed to the API.
+
+# Example
+```julia
+julia> prepare_query("sea_water_temperature", "degree_Celsius", 
+Dates.Date(2000, 1, 1), Dates.Date(2020, 12, 31), 0., 250., 26.5, 41.95, 40.0, 47.95)
+```
 """
-function prepare_query(datasource::AbstractString, parameter1::String, parameter2::String, datestart::Date, dateend::Date, 
-        mindepth::Float64, maxdepth::Float64, minlon::Float64, maxlon::Float64, 
-        minlat::Float64, maxlat::Float64; dateref::Date=Dates.Date(1950, 1, 1)
-        )
-
-    # The reference data can change according to the datasource!
-    if datasource == "World Ocean Database"
-        dateref = Dates.Date(1770, 1, 1)
-    elseif datasource == "EMODnet Chemistry" 
-        dateref = Dates.Date(1921, 1, 1)
-    end
+function prepare_query(parameter::String, unit::String, datestart::Date, dateend::Date, mindepth::Float64, maxdepth::Float64, minlon::Float64, maxlon::Float64, minlat::Float64, maxlat::Float64;
+dateref::Date=Dates.Date(1950, 1, 1))
 
     mintemporal = (datestart - dateref).value
     maxtemporal = (dateend - dateref).value
 
-    if datasource == "World Ocean Database"
-        queryparams = [
-            OrderedDict("column_name" => parameter1, "alias" => parameter1),
-            OrderedDict("column_name" => "time", "alias" => "TIME"),
-            OrderedDict("column_name" => "z", "alias" => "DEPTH"),
-            OrderedDict("column_name" => "lon", "alias" => "LONGITUDE"),
-            OrderedDict("column_name" => "lat", "alias" => "LATITUDE"),
-            OrderedDict("column_name" => "dataset", "alias" => "DATASET", "optional" => true),
-            OrderedDict("column_name" => "WOD_cruise_identifier", "alias" => "cruise-identifier", "optional" => true),
-            OrderedDict("column_name" => "wod_unique_cast", "alias" => "cast", "optional" => true),
-            OrderedDict("column_name" => "WMO_ID", "alias" => "WMO_ID", "optional" => true),
-            OrderedDict("column_name" => "country", "alias" => "country", "optional" => true)
-        ]
-
-    elseif datasource == "SeaDataNet CDI TS"
-        queryparams = [
-            OrderedDict("column_name" => parameter1, "alias" => parameter1),
-            OrderedDict("column_name" => "yyyy-mm-ddThh:mm:ss.sss", "alias" => "TIME"),
-            OrderedDict("column_name" => "Depth", "alias" => "DEPTH"), 
-            OrderedDict("column_name" => "Longitude", "alias" => "LONGITUDE"),
-            OrderedDict("column_name" => "Latitude", "alias" => "LATITUDE")
-        ]
-    
-    elseif occursin("CORA", datasource)
-        queryparams = [
-            OrderedDict("column_name" => parameter1, "alias" => parameter1),
-            OrderedDict("column_name" => "JULD", "alias" => "TIME"),
-            OrderedDict("column_name" => "DEPH", "alias" => "DEPTH"),
-            OrderedDict("column_name" => "LONGITUDE", "alias" => "LONGITUDE"),
-            OrderedDict("column_name" => "LATITUDE", "alias" => "LATITUDE")
-        ]
-    elseif occursin("CMEMS", datasource)
-        queryparams = [
-            OrderedDict("column_name" => parameter1, "alias" => parameter1),
-            OrderedDict("column_name" => parameter1, "column_attribute" => "scale_factor", "alias" => "scale_factor"),
-            OrderedDict("column_name" => "JULD", "alias" => "TIME"),
-            OrderedDict("column_name" => "DEPH", "alias" => "DEPTH"),
-            OrderedDict("column_name" => "LONGITUDE", "alias" => "LONGITUDE"),
-            OrderedDict("column_name" => "LATITUDE", "alias" => "LATITUDE")
-        ]
-    elseif datasource == "EMODnet Chemistry"
-        queryparams = [
-            OrderedDict("column_name" => parameter1, "alias" => parameter1),
-            OrderedDict("column_name" => "date_time", "alias" => "TIME"), 
-            OrderedDict("column_name" => "Depth", "alias" => "DEPTH"),
-            OrderedDict("column_name" => "longitude", "alias" => "LONGITUDE"),
-            OrderedDict("column_name" => "latitude", "alias" => "LATITUDE")
-        ]
-    else
-        queryparams = [
-            OrderedDict("column_name" => parameter1, "alias" => parameter1, "optional" => false),
-            OrderedDict("column_name" => parameter2, "alias" => parameter2, "optional" => true),
-            OrderedDict("column_name" => "JULD", "alias" => "TIME"),
-            OrderedDict("column_name" => "PRES", "alias" => "DEPTH"),
-            OrderedDict("column_name" => "LONGITUDE", "alias" => "LONGITUDE"),
-            OrderedDict("column_name" => "LATITUDE", "alias" => "LATITUDE"),
-        ]
-    end
-
-    # Filters for the coordinates
-    if datasource == "SeaDataNet CDI TS"
-        filters = [
-            OrderedDict("for_query_parameter" =>  "TIME", "min" => Dates.format(datestart, "yyyymmddT00:00:00"), "max" => Dates.format(dateend, "yyyymmddT00:00:00")),
-            OrderedDict("for_query_parameter" =>  "DEPTH", "min" => mindepth, "max" => maxdepth),
-            OrderedDict("for_query_parameter" =>  "LONGITUDE", "min" => minlon, "max" => maxlon), 
-            OrderedDict("for_query_parameter" =>  "LATITUDE", "min" => minlat, "max" => maxlat)
-        ]
-    elseif occursin("CORA", datasource)
-        @info("Working with CORA dataset")
-        filters = [
-            OrderedDict("for_query_parameter" => "TIME", "min" => mintemporal, "max" => maxtemporal),
-            OrderedDict("for_query_parameter" => "DEPTH", "min" => mindepth, "max" => maxdepth),
-            OrderedDict("for_query_parameter" => "LONGITUDE", "min" => minlon, "max" => maxlon),
-            OrderedDict("for_query_parameter" => "LATITUDE", "min" => minlat, "max" => maxlat),
-            OrderedDict("for_query_parameter" => parameter1, "min" => -2., "max" => 30.)
-        ]
-    else
-        filters = [
-            OrderedDict("for_query_parameter" => "TIME", "min" => mintemporal, "max" => maxtemporal),
-            OrderedDict("for_query_parameter" => "DEPTH", "min" => mindepth, "max" => maxdepth),
-            OrderedDict("for_query_parameter" => "LONGITUDE", "min" => minlon, "max" => maxlon),
-            OrderedDict("for_query_parameter" => "LATITUDE", "min" => minlat, "max" => maxlat)
-        ]
-    end
-    
+    # Start with an ordered dictionary, then convert to JSON
     paramdict = OrderedDict(
-        "query_parameters" => queryparams,
-        "filters" => filters,
-        "output" => Dict("format"=> "netcdf")
-    )
-    body = JSON3.write(paramdict);
-    return body
+    "query_parameters" => [
+    OrderedDict("data_parameter" => parameter,
+        "unit"=> unit,
+        "skip_fill_values" => true,
+                "alias" => "OBSERVATIONS",
+        "alias"=> "sea_water_temperature"),
+    OrderedDict("data_parameter"=> "time",
+        "unit"=> "days since 1950-01-01 00:00:00 UTC",
+        "skip_fill_values"=> false,
+        "alias"=> "TEMPORAL"),
+    OrderedDict("data_parameter"=> "sea_water_pressure",
+        "unit"=> "decibar",
+        "include_original_data"=> false,
+        "alias"=> "DEPTH"),
+    OrderedDict("data_parameter"=> "longitude",
+        "unit"=> "degree_east",
+        "skip_fill_values"=> false,
+        "alias"=> "LONGITUDE"),
+    OrderedDict("data_parameter"=> "latitude",
+        "unit"=> "degree_north",
+        "skip_fill_values"=> false,
+        "alias"=> "LATITUDE")],
+    "filters"=> [
+        OrderedDict("for_query_parameter" => Dict("alias"=> "TEMPORAL"), "min"=> mintemporal, "max"=> maxtemporal),
+        OrderedDict("for_query_parameter" => Dict("alias"=> "DEPTH"), "min"=> mindepth, "max"=> maxdepth),
+        OrderedDict("for_query_parameter" => Dict("alias"=> "LONGITUDE"), "min"=> minlon, "max"=> maxlon),
+        OrderedDict("for_query_parameter" => Dict("alias"=> "LATITUDE"), "min"=> minlat, "max"=> maxlat)
+    ],
+    "output" => Dict("format"=> "netcdf")
+        )
+    body = JSON3.write(paramdict)
+    return body::String, paramdict::OrderedDict
 end
 
+# ╔═╡ 9a0e03b8-8892-45e6-9d23-dc93ff3e3647
+@time query, paramdict = prepare_query(parameter, units, Date(datestart), Date(dateend), mindepth, maxdepth, minlon, maxlon, minlat, maxlat);
 
 # ╔═╡ 0b5c88a4-e68b-4674-8e70-06cffb7bcd9e
 md"""
@@ -273,79 +210,37 @@ md"""
 """
 
 # ╔═╡ 1628eb7f-b6ce-4b43-a7fa-e7d15988c127
-for datasource in datasourcelist
-    
-    @info("Working on $(datasource)")
+for datas in datasources
+	@info("Download data from $(datas)")
+	fileprefix = replace(datas, " "=> "_")
+	filename = joinpath(datadir, "$(fileprefix)_$(parameter)_$(regionname)_$(Dates.format(datestart, "yyyymmdd"))-$(Dates.format(dateend, "yyyymmdd"))_$(Int(mindepth))-$(Int(maxdepth))m.nc");
 
-    parameter1 = "TEMP"
-    if datasource == "World Ocean Database"
-        parameter1 = "Temperature"
-    elseif datasource == "EMODnet Chemistry"  
-        parameter1 = "ITS_90_water_temperature"
-    elseif datasource == "SeaDataNet CDI TS"
-        parameter1 = "ITS-90 water temperature"
-    end
-    parameter2 = "PSAL"
-    
-    @info("$(datestart) → $(dateend), $(parameter1)")
-    
-    # Download the "footprint"
-    beaconURL = beacon_services[datasource]
-    footprintURL = joinpath(beaconURL, "api/datasets/footprint")
-    datasource_name = replace(datasource, " " => "_")
-    footprintfile = joinpath(footprintdir, "Footprint_$(datasource_name).json")
-    @info("Footprint endpoint: $(footprintURL)")
-    @info("Footprint file: $(footprintfile)")
-    
-    if isfile(footprintfile)
-        @info("Footprint file already downloaded")
-    else
-        @info("Writing Footprint file")
-        open(footprintfile, "w") do io
-            r = HTTP.request("GET", footprintURL, 
-                ["Authorization" => "Bearer $(token)"],
-                response_stream=io)
-            @info(r.status)
-        end
-    end
-    
-    data = JSON.parsefile(footprintfile);
-    attributes = data["unique_column_attributes"]
-    params = sort(collect(keys(attributes)));
-    
-    # Check if the parameters is in the list
-    parameter1 in params ? @info("Parameter available") : @warn("Parameter not available")
-    # @show(params);
-    
-    # Build query
-    query = prepare_query(datasource, parameter1, parameter2, datestart, dateend, 
-        mindepth, maxdepth, minlon, maxlon, minlat, maxlat)
-    
-    # Construct file and figure names
-    filename = joinpath(datadir, "$(regionname)_$(datasource_name)_$(replace(parameter1, " "=>"_"))_$(Dates.format(datestart, "yyyymmdd"))-$(Dates.format(dateend, "yyyymmdd"))_$(Int(mindepth))-$(Int(maxdepth))m.nc");
-    figname = "$(regionname)_$(datasource_name)_$(replace(parameter1, " "=>"_"))_$(Dates.format(datestart, "yyyymmdd"))-$(Dates.format(dateend, "yyyymmdd"))_$(Int(mindepth))-$(Int(maxdepth))m.jpg"
+	@info("Data will be written in file:\n$(filename)")
 
-    # Write the data in netCDF files
-    @info("Data will be written in file:\n$(filename)")
-    if isfile(filename)
-        @info("File already downloaded")
-        rm(filename)
-    end
-    @time open(filename, "w") do io
-        r = HTTP.request("POST", joinpath(beaconURL, "api/query"), 
-            ["Content-type"=> "application/json",
-             "Authorization" => "Bearer $(token)"
-            ],
-            query, 
-            response_stream=io);
-        @info(r.status)
-    end
+	if isfile(filename)
+		@info("File already downloaded")
+	else
+		@time open(filename, "w") do io
+			r = HTTP.request("POST", "$(beacon_services[datas])/api/query",
+			["Content-Type" => "application/json",
+			 "Authorization" => "Bearer $(APItoken)"
+			], query,
+			response_stream=io);
+			@info(r.status)
+		end
+	end;
 
-    @info("NetCDF file size: $(round(filesize(filename)/1000^2, digits=1))M")
-    
-    # Create plot
-    plot_positions(filename, figname, datasource)
-end   
+	@info("NetCDF file size: $(round(filesize(filename)/1000^2, digits=1))M")
+end
+
+# ╔═╡ 1e4c141f-e0af-4f4b-b119-9dd9e1385b30
+@show paramdict
+
+# ╔═╡ 0cbc29da-ffb5-4bd0-a981-3646a39150ac
+r = HTTP.request("POST", "$(beacon_services["SeaDataNet CDI TS"])/api/query",
+	["Content-Type" => "application/json",
+	 "Authorization" => "Bearer $(APItoken)"
+	], query);
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -357,7 +252,6 @@ Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 HTTP = "cd3eb016-35fb-5094-929b-558a96fad6f3"
 HypertextLiteral = "ac1192a8-f4b3-4bfe-ba22-af5b92cd3ab2"
 InteractiveUtils = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
-JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
 Markdown = "d6f4376e-aef5-505a-96c1-9c027394607a"
 NCDatasets = "85f8d34a-cbdd-5861-8df4-14fed0d494ab"
@@ -374,9 +268,8 @@ Conda = "~1.10.2"
 Contour = "~0.6.3"
 HTTP = "~1.10.8"
 HypertextLiteral = "~0.9.5"
-JSON = "~0.21.4"
 JSON3 = "~1.14.0"
-NCDatasets = "~0.14.5"
+NCDatasets = "~0.14.4"
 NaNStatistics = "~0.6.41"
 OrderedCollections = "~1.6.3"
 PlutoUI = "~0.7.60"
@@ -388,9 +281,9 @@ PyPlot = "~2.11.5"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.10.5"
+julia_version = "1.11.0-rc3"
 manifest_format = "2.0"
-project_hash = "7717c7bf96de9a4db53bc16f743fdfc12e60741b"
+project_hash = "abcab18168a66b279ce5554f7e19a6a26b4b3e4b"
 
 [[deps.AbstractPlutoDingetjes]]
 deps = ["Pkg"]
@@ -412,7 +305,7 @@ version = "4.0.4"
 
 [[deps.ArgTools]]
 uuid = "0dad84c5-d112-42e6-8d28-ef12dabb789f"
-version = "1.1.1"
+version = "1.1.2"
 
 [[deps.ArrayInterface]]
 deps = ["Adapt", "LinearAlgebra"]
@@ -446,9 +339,11 @@ version = "7.16.0"
 
 [[deps.Artifacts]]
 uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
+version = "1.11.0"
 
 [[deps.Base64]]
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
+version = "1.11.0"
 
 [[deps.BitFlags]]
 git-tree-sha1 = "0691e34b3bb8be9307330f88d1a3c3f25466c24d"
@@ -538,6 +433,7 @@ version = "0.18.20"
 [[deps.Dates]]
 deps = ["Printf"]
 uuid = "ade2ca70-3891-5945-98fb-dc099432e06a"
+version = "1.11.0"
 
 [[deps.DiskArrays]]
 deps = ["LRUCache", "OffsetArrays"]
@@ -558,6 +454,7 @@ version = "0.1.10"
 
 [[deps.FileWatching]]
 uuid = "7b1f6079-737a-58dc-b8bc-7a2ca5c1b5ee"
+version = "1.11.0"
 
 [[deps.FixedPointNumbers]]
 deps = ["Statistics"]
@@ -568,7 +465,7 @@ version = "0.8.5"
 [[deps.GMP_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "781609d7-10c4-51f6-84f2-b8444358ff6d"
-version = "6.2.1+6"
+version = "6.3.0+0"
 
 [[deps.GnuTLS_jll]]
 deps = ["Artifacts", "GMP_jll", "JLLWrappers", "Libdl", "Nettle_jll", "P11Kit_jll", "Zlib_jll"]
@@ -590,9 +487,9 @@ version = "1.10.8"
 
 [[deps.Hwloc_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "378267a829b1e17423d32ce6d905f37a12c1fd84"
+git-tree-sha1 = "5e19e1e4fa3e71b774ce746274364aef0234634e"
 uuid = "e33a78d0-f292-5ffc-b300-72abe9b543c8"
-version = "2.11.1+1"
+version = "2.11.1+0"
 
 [[deps.Hyperscript]]
 deps = ["Test"]
@@ -620,6 +517,7 @@ version = "0.1.1"
 [[deps.InteractiveUtils]]
 deps = ["Markdown"]
 uuid = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
+version = "1.11.0"
 
 [[deps.JLLWrappers]]
 deps = ["Artifacts", "Preferences"]
@@ -662,6 +560,7 @@ version = "1.3.1"
 [[deps.LazyArtifacts]]
 deps = ["Artifacts", "Pkg"]
 uuid = "4af54fe1-eca0-43a8-85a7-787d91b784e3"
+version = "1.11.0"
 
 [[deps.LibCURL]]
 deps = ["LibCURL_jll", "MozillaCACerts_jll"]
@@ -671,16 +570,17 @@ version = "0.6.4"
 [[deps.LibCURL_jll]]
 deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll", "Zlib_jll", "nghttp2_jll"]
 uuid = "deac9b47-8bc7-5906-a0fe-35ac56dc84c0"
-version = "8.4.0+0"
+version = "8.6.0+0"
 
 [[deps.LibGit2]]
 deps = ["Base64", "LibGit2_jll", "NetworkOptions", "Printf", "SHA"]
 uuid = "76f85450-5226-5b5a-8eaa-529ad045b433"
+version = "1.11.0"
 
 [[deps.LibGit2_jll]]
 deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll"]
 uuid = "e37daf67-58a4-590a-8e99-b0245dd2ffc5"
-version = "1.6.4+0"
+version = "1.7.2+0"
 
 [[deps.LibSSH2_jll]]
 deps = ["Artifacts", "Libdl", "MbedTLS_jll"]
@@ -689,6 +589,7 @@ version = "1.11.0+1"
 
 [[deps.Libdl]]
 uuid = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
+version = "1.11.0"
 
 [[deps.Libiconv_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
@@ -699,9 +600,11 @@ version = "1.17.0+0"
 [[deps.LinearAlgebra]]
 deps = ["Libdl", "OpenBLAS_jll", "libblastrampoline_jll"]
 uuid = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+version = "1.11.0"
 
 [[deps.Logging]]
 uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
+version = "1.11.0"
 
 [[deps.LoggingExtras]]
 deps = ["Dates", "Logging"]
@@ -711,9 +614,9 @@ version = "1.0.3"
 
 [[deps.Lz4_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "abf88ff67f4fd89839efcae2f4c39cbc4ecd0846"
+git-tree-sha1 = "7f26c8fc5229e68484e0b3447312c98e16207d11"
 uuid = "5ced341a-0733-55b8-9ab6-a4889d929147"
-version = "1.10.0+1"
+version = "1.10.0+0"
 
 [[deps.MIMEs]]
 git-tree-sha1 = "65f28ad4b594aebe22157d6fac869786a255b7eb"
@@ -734,9 +637,9 @@ version = "0.1.11"
 
 [[deps.MPItrampoline_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "MPIPreferences", "TOML"]
-git-tree-sha1 = "fde81c9f9c94fe5fbeaed7b3f1330305cf9a327c"
+git-tree-sha1 = "8c35d5420193841b2f367e658540e8d9e0601ed0"
 uuid = "f1f71cc9-e9ae-5b93-9b94-4fe0e1ad3748"
-version = "5.5.0+0"
+version = "5.4.0+0"
 
 [[deps.MacroTools]]
 deps = ["Markdown", "Random"]
@@ -747,6 +650,7 @@ version = "0.5.13"
 [[deps.Markdown]]
 deps = ["Base64"]
 uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
+version = "1.11.0"
 
 [[deps.MbedTLS]]
 deps = ["Dates", "MbedTLS_jll", "MozillaCACerts_jll", "NetworkOptions", "Random", "Sockets"]
@@ -757,7 +661,7 @@ version = "1.1.9"
 [[deps.MbedTLS_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "c8ffd9c3-330d-5841-b78e-0817d7145fa1"
-version = "2.28.2+1"
+version = "2.28.6+0"
 
 [[deps.MicrosoftMPI_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -767,10 +671,11 @@ version = "10.1.4+2"
 
 [[deps.Mmap]]
 uuid = "a63ad114-7e13-5084-954f-fe012c677804"
+version = "1.11.0"
 
 [[deps.MozillaCACerts_jll]]
 uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
-version = "2023.1.10"
+version = "2023.12.12"
 
 [[deps.NCDatasets]]
 deps = ["CFTime", "CommonDataModel", "DataStructures", "Dates", "DiskArrays", "NetCDF_jll", "NetworkOptions", "Printf"]
@@ -812,7 +717,7 @@ weakdeps = ["Adapt"]
 [[deps.OpenBLAS_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
-version = "0.3.23+4"
+version = "0.3.27+1"
 
 [[deps.OpenMPI_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "MPIPreferences", "TOML"]
@@ -828,9 +733,9 @@ version = "1.4.3"
 
 [[deps.OpenSSL_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "7493f61f55a6cce7325f197443aa80d32554ba10"
+git-tree-sha1 = "a028ee3cb5641cccc4c24e90c36b0a4f7707bdf5"
 uuid = "458c3c95-2e84-50aa-8efc-19380b2a3a95"
-version = "3.0.15+1"
+version = "3.0.14+0"
 
 [[deps.OrderedCollections]]
 git-tree-sha1 = "dfdf5519f235516220579f949664f1bf44e741c5"
@@ -850,9 +755,15 @@ uuid = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
 version = "2.8.1"
 
 [[deps.Pkg]]
-deps = ["Artifacts", "Dates", "Downloads", "FileWatching", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "REPL", "Random", "SHA", "Serialization", "TOML", "Tar", "UUIDs", "p7zip_jll"]
+deps = ["Artifacts", "Dates", "Downloads", "FileWatching", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "Random", "SHA", "TOML", "Tar", "UUIDs", "p7zip_jll"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
-version = "1.10.0"
+version = "1.11.0"
+
+    [deps.Pkg.extensions]
+    REPLExt = "REPL"
+
+    [deps.Pkg.weakdeps]
+    REPL = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
 
 [[deps.PlutoUI]]
 deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "JSON", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
@@ -875,6 +786,7 @@ version = "1.4.3"
 [[deps.Printf]]
 deps = ["Unicode"]
 uuid = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+version = "1.11.0"
 
 [[deps.PyCall]]
 deps = ["Conda", "Dates", "Libdl", "LinearAlgebra", "MacroTools", "Serialization", "VersionParsing"]
@@ -888,13 +800,10 @@ git-tree-sha1 = "0371ca706e3f295481cbf94c8c36692b072285c2"
 uuid = "d330b81b-6aea-500a-939a-2ce795aea3ee"
 version = "2.11.5"
 
-[[deps.REPL]]
-deps = ["InteractiveUtils", "Markdown", "Sockets", "Unicode"]
-uuid = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
-
 [[deps.Random]]
 deps = ["SHA"]
 uuid = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+version = "1.11.0"
 
 [[deps.Reexport]]
 git-tree-sha1 = "45e428421666073eab6f2da5c9d310d99bb12f9b"
@@ -913,19 +822,16 @@ version = "0.7.0"
 
 [[deps.Serialization]]
 uuid = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
+version = "1.11.0"
 
 [[deps.SimpleBufferStream]]
-git-tree-sha1 = "f305871d2f381d21527c770d4788c06c097c9bc1"
+git-tree-sha1 = "874e8867b33a00e784c8a7e4b60afe9e037b74e1"
 uuid = "777ac1f9-54b0-4bf8-805c-2214025038e7"
-version = "1.2.0"
+version = "1.1.0"
 
 [[deps.Sockets]]
 uuid = "6462fe0b-24de-5631-8697-dd941f90decc"
-
-[[deps.SparseArrays]]
-deps = ["Libdl", "LinearAlgebra", "Random", "Serialization", "SuiteSparse_jll"]
-uuid = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
-version = "1.10.0"
+version = "1.11.0"
 
 [[deps.Static]]
 deps = ["IfElse"]
@@ -948,20 +854,22 @@ version = "1.8.0"
     StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [[deps.Statistics]]
-deps = ["LinearAlgebra", "SparseArrays"]
+deps = ["LinearAlgebra"]
+git-tree-sha1 = "ae3bb1eb3bba077cd276bc5cfc337cc65c3075c0"
 uuid = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
-version = "1.10.0"
+version = "1.11.1"
+
+    [deps.Statistics.extensions]
+    SparseArraysExt = ["SparseArrays"]
+
+    [deps.Statistics.weakdeps]
+    SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 
 [[deps.StructTypes]]
 deps = ["Dates", "UUIDs"]
 git-tree-sha1 = "159331b30e94d7b11379037feeb9b690950cace8"
 uuid = "856f2bd8-1eba-4b0a-8007-ebc267875bd4"
 version = "1.11.0"
-
-[[deps.SuiteSparse_jll]]
-deps = ["Artifacts", "Libdl", "libblastrampoline_jll"]
-uuid = "bea87d4a-7f5b-5778-9afe-8cc45184846c"
-version = "7.2.1+1"
 
 [[deps.TOML]]
 deps = ["Dates"]
@@ -976,6 +884,7 @@ version = "1.10.0"
 [[deps.Test]]
 deps = ["InteractiveUtils", "Logging", "Random", "Serialization"]
 uuid = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+version = "1.11.0"
 
 [[deps.TranscodingStreams]]
 git-tree-sha1 = "e84b3a11b9bece70d14cce63406bbc79ed3464d2"
@@ -995,9 +904,11 @@ version = "1.5.1"
 [[deps.UUIDs]]
 deps = ["Random", "SHA"]
 uuid = "cf7118a7-6976-5b1a-9a39-7adc72f591a4"
+version = "1.11.0"
 
 [[deps.Unicode]]
 uuid = "4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5"
+version = "1.11.0"
 
 [[deps.VersionParsing]]
 git-tree-sha1 = "58d6e80b4ee071f5efd07fda82cb9fbe17200868"
@@ -1023,9 +934,9 @@ version = "1.2.13+1"
 
 [[deps.Zstd_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "555d1076590a6cc2fdee2ef1469451f872d8b41b"
+git-tree-sha1 = "e678132f07ddb5bfa46857f0d7620fb9be675d3b"
 uuid = "3161d3a3-bdf6-5164-811a-617609db77b4"
-version = "1.5.6+1"
+version = "1.5.6+0"
 
 [[deps.libaec_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
@@ -1047,7 +958,7 @@ version = "1.10.1+0"
 [[deps.nghttp2_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850ede-7688-5339-a07c-302acd2aaf8d"
-version = "1.52.0+1"
+version = "1.59.0+0"
 
 [[deps.p7zip_jll]]
 deps = ["Artifacts", "Libdl"]
@@ -1068,15 +979,18 @@ version = "17.4.0+2"
 # ╟─b24bb60b-5c93-4867-af6c-b57cd7cd2e9f
 # ╟─6a6793e2-6cf9-4995-9f6b-f76a1670f4c8
 # ╟─75d9c692-6d5b-4719-9fee-fa4ea438dc7a
-# ╟─9159c1f4-6391-11ef-2178-2bcdb7f92e07
+# ╠═9159c1f4-6391-11ef-2178-2bcdb7f92e07
 # ╠═f204b1f1-a23b-418f-912a-03dda1b3c401
 # ╟─53d897d0-485a-4464-87d1-44818ca1b710
-# ╟─6d51c3f9-ad07-4059-9105-472214757206
+# ╠═6d51c3f9-ad07-4059-9105-472214757206
 # ╟─a95a842d-1ec2-4a05-a241-0e9be7b48179
 # ╠═8edc241f-b329-4568-9406-51001f5456af
-# ╟─ae1c0a0f-891e-4bda-b762-75c880c21efc
-# ╟─6d7207d7-ea88-4a14-ac64-7a4a9e7035ee
+# ╠═ae1c0a0f-891e-4bda-b762-75c880c21efc
+# ╠═6d7207d7-ea88-4a14-ac64-7a4a9e7035ee
+# ╠═9a0e03b8-8892-45e6-9d23-dc93ff3e3647
 # ╟─0b5c88a4-e68b-4674-8e70-06cffb7bcd9e
 # ╠═1628eb7f-b6ce-4b43-a7fa-e7d15988c127
+# ╠═1e4c141f-e0af-4f4b-b119-9dd9e1385b30
+# ╠═0cbc29da-ffb5-4bd0-a981-3646a39150ac
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
