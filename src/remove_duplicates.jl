@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.47
+# v0.20.3
 
 using Markdown
 using InteractiveUtils
@@ -32,6 +32,8 @@ md"""
 # ╔═╡ de37d7d9-b40e-4dd5-8230-8cff530cdfb8
 begin
 	datadir= "../data/NorthAdriatic/"
+	outputdir = "../data/NorthAdriatic/merged/"
+	isdir(outputdir) ? @debug("Already created") : mkpath(outputdir)
 	datafilelist = Glob.glob("*.nc", datadir)
 	nfiles = length(datafilelist)
 	@info("Found $(nfiles) data files")
@@ -73,7 +75,7 @@ begin
 	timesall = Vector{Vector{DateTime}}(undef, nfiles)
 	depthall = Vector{Vector{Float64}}(undef, nfiles)
 	obsall = Vector{Vector{Float64}}(undef, nfiles)
-	obsidall = Vector{Vector{Int64}}(undef, nfiles)
+	obsidall = Vector{Vector{String}}(undef, nfiles)
 	
 	for (iii, datafile) in enumerate(datafilelist)
 	    @info("Working on file $(basename(datafile))")
@@ -104,7 +106,7 @@ begin
 	        end
 
 	        obsall[iii] = ds[keys(ds)[1]][:]
-			obsidall[iii] = ds["dataset_id"][:]
+			obsidall[iii] = string.(ds["dataset_id"][:])
 	    end
 	end
 end
@@ -137,6 +139,26 @@ else
 	@warn("No file has been written, hence no plot will be produced")
 end
 
+# ╔═╡ abfd392c-b887-47a2-a515-687b27e470a9
+
+
+# ╔═╡ 48c45c91-0fdc-497c-bb58-b18b43ea6a71
+md"""
+### Extract list of data sources
+"""
+
+# ╔═╡ 9d84a5d3-2219-4382-b5d0-428f5b71e9fc
+begin
+	datasourcelist = String[]
+	for (iii, outputfile) in enumerate(datafilelist)
+		NCDataset(outputfile, "r") do ds
+			push!(datasourcelist, ds.attrib["data_source"])
+		end
+	end
+
+	@info(datasourcelist)
+end
+
 # ╔═╡ c6e017dc-91b5-4e64-90e3-e1285b41b4d5
 md"""
 ## Duplicate detection
@@ -161,7 +183,7 @@ md"""
 # ╔═╡ bfc9517b-5bd4-4901-8233-3dbbbd6f28a1
 function merge_datasets(lonall::Vector{Vector{Float64}},latall::Vector{Vector{Float64}}, 
         depthall::Vector{Vector{Float64}}, timesall::Vector{Vector{DateTime}}, 
-        obsall::Vector{Vector{Float64}}, obsidall::Vector{Vector{Int64}}, Δlon::Float64, Δlat::Float64, Δdepth::Float64, 
+        obsall::Vector{Vector{Float64}}, obsidall::Vector{Vector{String}}, Δlon::Float64, Δlat::Float64, Δdepth::Float64, 
         Δtime::Float64, Δvar::Float64)
     
     pct = []
@@ -226,7 +248,7 @@ function merge_datasets(lonall::Vector{Vector{Float64}},latall::Vector{Vector{Fl
     obsid = vcat(obsid, obsidall[4][newpoints]) 
 	
     return lons::Vector{Float64}, lats::Vector{Float64}, depths::Vector{Float64}, 
-    times::Vector{DateTime}, obs::Vector{Float64}, obsid::Vector{Int64}, pct::Vector
+    times::Vector{DateTime}, obs::Vector{Float64}, obsid::Vector{String}, pct::Vector
 end
 
 # ╔═╡ 112b847b-f1ae-4497-8caf-4aae4219285f
@@ -262,58 +284,18 @@ md"""
 So it can be used in another notebook
 """
 
-# ╔═╡ 74da46a4-70bd-4044-be0a-9c33cee0503d
+# ╔═╡ fec4ea5a-5659-4478-b6a8-c37ca63b58df
 begin
-	
-ds = NCDataset("filename.nc","c", attrib = OrderedDict(
-    "data_source"               => "World Ocean Database",
-    "date_created"              => "2024-11-14T12:01:01",
-))
+	outputfile = joinpath(outputdir, "$(regionname)_test.nc")
+	isfile(outputfile) ? rm(outputfile) : @debug("ok")
+	DIVAnd.saveobs(outputfile,"temperature", obsval, (obslon, obslat, obsdepth, obstime), obsid)
 
-# Dimensions
+	NCDataset(outputfile, "a") do ds
+		ds.attrib["data_source"] = datasourcelist
+		ds.attrib["date_created"] = Dates.format(Dates.now(), "yyyy-mm-ddTHH:MM:SS")
+		# Maybe add other attributes
+	end
 
-ds.dim["INSTANCE"] = 201979
-
-# Declare variables
-
-ncTemperature = defVar(ds,"Temperature", Float32, ("INSTANCE",))
-
-ncTIME = defVar(ds,"TIME", Float64, ("INSTANCE",))
-
-ncDEPTH = defVar(ds,"DEPTH", Float32, ("INSTANCE",))
-
-ncLONGITUDE = defVar(ds,"LONGITUDE", Float32, ("INSTANCE",))
-
-ncLATITUDE = defVar(ds,"LATITUDE", Float32, ("INSTANCE",))
-
-ncDATASET = defVar(ds,"DATASET", String, ("INSTANCE",))
-
-nccruise-identifier = defVar(ds,"cruise-identifier", String, ("INSTANCE",))
-
-nccast = defVar(ds,"cast", Int32, ("INSTANCE",))
-
-ncWMO_ID = defVar(ds,"WMO_ID", Int32, ("INSTANCE",))
-
-nccountry = defVar(ds,"country", String, ("INSTANCE",))
-
-ncdataset_id = defVar(ds,"dataset_id", Int64, ("INSTANCE",))
-
-
-# Define variables
-
-# ncTemperature[:] = ...
-# ncTIME[:] = ...
-# ncDEPTH[:] = ...
-# ncLONGITUDE[:] = ...
-# ncLATITUDE[:] = ...
-# ncDATASET[:] = ...
-# nccruise-identifier[:] = ...
-# nccast[:] = ...
-# ncWMO_ID[:] = ...
-# nccountry[:] = ...
-# ncdataset_id[:] = ...
-
-close(ds)
 end
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
@@ -2619,6 +2601,9 @@ version = "3.6.0+0"
 # ╟─69f26bb9-4153-44be-8e07-26c9fc923130
 # ╠═707f5ae4-fcbe-4882-8ded-c5d1ea8f3a1b
 # ╠═1bcdc70e-e35d-4906-9fc3-d2f260d4d236
+# ╠═abfd392c-b887-47a2-a515-687b27e470a9
+# ╟─48c45c91-0fdc-497c-bb58-b18b43ea6a71
+# ╠═9d84a5d3-2219-4382-b5d0-428f5b71e9fc
 # ╟─c6e017dc-91b5-4e64-90e3-e1285b41b4d5
 # ╠═81a4fe84-ca9e-4e5a-ad9f-f8fc6d4ebb92
 # ╟─044bd8bf-a436-48bc-8237-4c1f94637ba2
@@ -2627,6 +2612,6 @@ version = "3.6.0+0"
 # ╟─000cf629-36f4-49b8-bc81-7d7dce8d5f24
 # ╠═efd69ea2-ac86-480a-bea0-9487dfb1e93e
 # ╟─243fbe67-119f-4e70-9652-3df15d38128d
-# ╠═74da46a4-70bd-4044-be0a-9c33cee0503d
+# ╠═fec4ea5a-5659-4478-b6a8-c37ca63b58df
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
