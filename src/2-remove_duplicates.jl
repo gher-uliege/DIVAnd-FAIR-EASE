@@ -20,7 +20,7 @@ end
 # ╔═╡ 18727eb2-a1ac-4c67-8f90-a75f22602be1
 md"""
 # Duplicate detection
-This notebook follows the data preparation step. Its main input is a list of file produced by [beacon_source.jl](beacon_source.jl).
+This notebook follows the data preparation step. Its main input is a list of file produced by the notebook [1-extract_data.jl](1-extract_data.jl).
 """
 
 
@@ -326,7 +326,7 @@ OrderedCollections = "~1.6.3"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.11.1"
+julia_version = "1.11.2"
 manifest_format = "2.0"
 project_hash = "bbe92bd9f1a0f50a1e08f3b5cb4a0d668a8c1b27"
 

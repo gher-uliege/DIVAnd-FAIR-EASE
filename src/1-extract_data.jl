@@ -176,11 +176,6 @@ md"""
 # ╔═╡ 7c46cb85-15cf-4900-942c-2086ac07ba94
 @bind dateend html"<input type=date value='2020-12-31' min='1800-01-01' max='2100-12-31'>"
 
-# ╔═╡ 9159c1f4-6391-11ef-2178-2bcdb7f92e07
-begin
-	APItoken = ENV["beaconAPItoken"];
-end;
-
 # ╔═╡ c96e488c-f559-46e8-bee1-8631af5fe639
 md"""
 ## Define the query
@@ -237,8 +232,8 @@ function prepare_query(datasource::AbstractString, parameter1::String, parameter
     
     elseif occursin("CORA", datasource)
         queryparams = [
-            OrderedDict("column_name" => parameter1, "alias" => parameter1),
-            OrderedDict("column_name" => "JULD", "alias" => "TIME"),
+            OrderedDict("column_name" => parameter1, "alias" => parameter1, "skip_fill_values" => true),
+            OrderedDict("column_name" => "cf_datetime", "alias" => "TIME"),
             OrderedDict("column_name" => "DEPH", "alias" => "DEPTH"),
             OrderedDict("column_name" => "LONGITUDE", "alias" => "LONGITUDE"),
             OrderedDict("column_name" => "LATITUDE", "alias" => "LATITUDE")
@@ -271,7 +266,7 @@ function prepare_query(datasource::AbstractString, parameter1::String, parameter
         ]
     end
 
-    # Filters for the coordinates
+    # Filters for the coordinates and variables
     if datasource == "SeaDataNet CDI TS"
         filters = [
             OrderedDict("for_query_parameter" =>  "TIME", "min" => Dates.format(datestart, "yyyymmddT00:00:00"), "max" => Dates.format(dateend, "yyyymmddT00:00:00")),
@@ -282,7 +277,7 @@ function prepare_query(datasource::AbstractString, parameter1::String, parameter
     elseif occursin("CORA", datasource)
         @info("Working with CORA dataset")
         filters = [
-            OrderedDict("for_query_parameter" => "TIME", "min" => mintemporal, "max" => maxtemporal),
+            OrderedDict("for_query_parameter" => "TIME", "min" => Dates.format(datestart, "yyyy-mm-ddT00:00:00"), "max" => Dates.format(dateend, "yyyy-mm-ddT00:00:00"), "cast" => "timestamp"),
             OrderedDict("for_query_parameter" => "DEPTH", "min" => mindepth, "max" => maxdepth),
             OrderedDict("for_query_parameter" => "LONGITUDE", "min" => minlon, "max" => maxlon),
             OrderedDict("for_query_parameter" => "LATITUDE", "min" => minlat, "max" => maxlat),
@@ -418,7 +413,7 @@ if length(outputfilelist) > 0
 			datasource = ds.attrib["data_source"]
 			lon = ds["LONGITUDE"][:]
 			lat = ds["LATITUDE"][:]
-			plot!(ga, lon, lat, color=colorlist[iii], markersize=5,
+			plot!(ga, lon, lat, color=colorlist[iii], markersize=2,
 				label="$(datasource) ($(length(lon)) obs.)")
 		end
 		
@@ -454,7 +449,7 @@ if length(outputfilelist) > 0
 			lat = ds["LATITUDE"][:]
 			ga = GeoAxis(fig2[1+(iii-1)÷2, 1+(iii-1)%2];  dest = "+proj=merc", 
 				title="$(datasource) ($(length(lon)) obs.)")
-			plot!(ga, lon, lat, color=:orange, markersize=5)
+			plot!(ga, lon, lat, color=:orange, markersize=2)
 			lines!(ga, GeoMakie.coastlines(10), color=:black)
 			# poly!(ga, land, color=:grey)
 			xlims!(ga, minlon, maxlon)
@@ -507,7 +502,7 @@ PlutoUI = "~0.7.60"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.11.1"
+julia_version = "1.11.2"
 manifest_format = "2.0"
 project_hash = "0afb2630834d2b60bede089997bf7747332827a5"
 
@@ -2329,11 +2324,10 @@ version = "3.6.0+0"
 # ╟─b24bb60b-5c93-4867-af6c-b57cd7cd2e9f
 # ╟─6a6793e2-6cf9-4995-9f6b-f76a1670f4c8
 # ╟─7c46cb85-15cf-4900-942c-2086ac07ba94
-# ╟─9159c1f4-6391-11ef-2178-2bcdb7f92e07
 # ╟─c96e488c-f559-46e8-bee1-8631af5fe639
-# ╟─6d7207d7-ea88-4a14-ac64-7a4a9e7035ee
+# ╠═6d7207d7-ea88-4a14-ac64-7a4a9e7035ee
 # ╟─0b5c88a4-e68b-4674-8e70-06cffb7bcd9e
-# ╠═1628eb7f-b6ce-4b43-a7fa-e7d15988c127
+# ╟─1628eb7f-b6ce-4b43-a7fa-e7d15988c127
 # ╟─084304e3-1160-4eba-8668-dffa3a0af6f8
 # ╠═977afa41-9889-4bbc-9c08-dcb9df0f5617
 # ╟─1ec1f29a-8530-48d5-aac8-ba3792784938
