@@ -5,6 +5,9 @@
 
     outputfile = tempname() * ".nc"
 
+    @info(query);
+    @info(outputfile);
+
     @time open(outputfile, "w") do io
         r = HTTP.request("POST", joinpath(beacon_services[datasource], "api/query"), 
             ["Content-type"=> "application/json",

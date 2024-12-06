@@ -8,8 +8,6 @@ using HTTP
 include("../src/DIVAndFairEase.jl")
 APItoken = ENV["beaconAPItoken"];
 
-println(APItoken[1:10])
-
 # Define period of interest and domain
 domain = [12.1, 17.85, 43.12, 45.95]
 datestart = Dates.Date(1990, 1, 1)
