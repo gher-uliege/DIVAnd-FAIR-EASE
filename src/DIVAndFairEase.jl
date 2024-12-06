@@ -10,10 +10,7 @@ using Dates
 using NCDatasets
 using OrderedCollections
 using NaNStatistics
-using PyPlot
-const plt = PyPlot
-using PyCall
-mpl = pyimport("matplotlib")
+
 
 """
     varbyunits(footprintfile, units)
@@ -52,7 +49,7 @@ function varbyunits(footprintfile::String, units::Vector{String})
 end
 
 """
-    prepare_query_new(parameter1, parameter2, datestart, dateend, mindepth, maxdepth, minlon, maxlon, minlat, maxlat)
+    prepare_query(parameter1, parameter2, datestart, dateend, mindepth, maxdepth, minlon, maxlon, minlat, maxlat)
 
 Prepare the JSON query that will be passed to the API, based on the data, depth and coordinate ranges.
 """
@@ -61,7 +58,7 @@ function prepare_query_new(datasource::AbstractString, parameter1::String, param
         minlat::Float64, maxlat::Float64; dateref::Date=Dates.Date(1950, 1, 1)
         )
 
-    # The reference data can change according to the datasource!
+    # The reference date can change according to the datasource!
     if datasource == "World Ocean Database"
         dateref = Dates.Date(1770, 1, 1)
     elseif datasource == "EMODnet Chemistry" 
@@ -96,8 +93,8 @@ function prepare_query_new(datasource::AbstractString, parameter1::String, param
     
     elseif occursin("CORA", datasource)
         queryparams = [
-            OrderedDict("column_name" => parameter1, "alias" => parameter1),
-            OrderedDict("column_name" => "JULD", "alias" => "TIME"),
+            OrderedDict("column_name" => parameter1, "alias" => parameter1, "skip_fill_values" => true),
+            OrderedDict("column_name" => "cf_datetime", "alias" => "TIME"),
             OrderedDict("column_name" => "DEPH", "alias" => "DEPTH"),
             OrderedDict("column_name" => "LONGITUDE", "alias" => "LONGITUDE"),
             OrderedDict("column_name" => "LATITUDE", "alias" => "LATITUDE")
@@ -130,7 +127,7 @@ function prepare_query_new(datasource::AbstractString, parameter1::String, param
         ]
     end
 
-    # Filters for the coordinates
+    # Filters for the coordinates and variables
     if datasource == "SeaDataNet CDI TS"
         filters = [
             OrderedDict("for_query_parameter" =>  "TIME", "min" => Dates.format(datestart, "yyyymmddT00:00:00"), "max" => Dates.format(dateend, "yyyymmddT00:00:00")),
@@ -141,7 +138,7 @@ function prepare_query_new(datasource::AbstractString, parameter1::String, param
     elseif occursin("CORA", datasource)
         @info("Working with CORA dataset")
         filters = [
-            OrderedDict("for_query_parameter" => "TIME", "min" => mintemporal, "max" => maxtemporal),
+            OrderedDict("for_query_parameter" => "TIME", "min" => Dates.format(datestart, "yyyy-mm-ddT00:00:00"), "max" => Dates.format(dateend, "yyyy-mm-ddT00:00:00"), "cast" => "timestamp"),
             OrderedDict("for_query_parameter" => "DEPTH", "min" => mindepth, "max" => maxdepth),
             OrderedDict("for_query_parameter" => "LONGITUDE", "min" => minlon, "max" => maxlon),
             OrderedDict("for_query_parameter" => "LATITUDE", "min" => minlat, "max" => maxlat),
@@ -164,6 +161,7 @@ function prepare_query_new(datasource::AbstractString, parameter1::String, param
     body = JSON3.write(paramdict);
     return body
 end
+
 
 """
     prepare_query(parameter, unit, datestart, dateend, mindepth, maxdept, minlon, maxlon, minlat, maxlat)
@@ -344,41 +342,41 @@ end
 Prepare a geoJSON file containing the contour of `field2D` and a file containing the
 color function in Javascript.
 """
-function write_field_json(lon, lat, field2D::Matrix{AbstractFloat}, Δvar::Float64; cmap=plt.cm.RdYlBu_r,
-                         resfile::AbstractString="./field.js", funfile::AbstractString="./colorfunction.js")
+# function write_field_json(lon, lat, field2D::Matrix{AbstractFloat}, Δvar::Float64; cmap=plt.cm.RdYlBu_r,
+#                          resfile::AbstractString="./field.js", funfile::AbstractString="./colorfunction.js")
 
-    vmin = nanminimum(field2D)
-    vmax = nanmaximum(field2D)
-    @info("vmin = $vmin, vmax = $vmax")
-    values = collect(floor(vmin / Δvar ) * Δvar : Δvar : floor(vmax / Δvar ) * Δvar)
-    norm = mpl.colors.Normalize(vmin=values[1], vmax=vmax[end])
+#     vmin = nanminimum(field2D)
+#     vmax = nanmaximum(field2D)
+#     @info("vmin = $vmin, vmax = $vmax")
+#     values = collect(floor(vmin / Δvar ) * Δvar : Δvar : floor(vmax / Δvar ) * Δvar)
+#     norm = mpl.colors.Normalize(vmin=values[1], vmax=vmax[end])
 
-    fieldjson = field2json(lon, lat, field2D, values)
+#     fieldjson = field2json(lon, lat, field2D, values)
 
-    # Write the contours in the geoJSON file
-    open(resfile, "w") do df
-        write(df, "var field = ")
-        write(df, fieldjson)
-    end
+#     # Write the contours in the geoJSON file
+#     open(resfile, "w") do df
+#         write(df, "var field = ")
+#         write(df, fieldjson)
+#     end
     
-    # Prepare the color function
-    colorlistrgb = cmap.(norm.(values))
-    colorlisthex = [hex(RGB(thecolor[1], thecolor[2], thecolor[3])) for thecolor in colorlistrgb];
+#     # Prepare the color function
+#     colorlistrgb = cmap.(norm.(values))
+#     colorlisthex = [hex(RGB(thecolor[1], thecolor[2], thecolor[3])) for thecolor in colorlistrgb];
     
-    # Write the color function (Javascript)
-    open(funfile, "w") do df
-        write(df, "function getMoreColor(d) {")
-        write(df, "return ")
-        for (vv, cc) in zip(values[1:end-1], colorlisthex[1:end-1])
-           write(df, "d < $(vv) ? '#$(cc)' :")
-        end
-        write(df, "'#$(colorlisthex[end])'; ")
-        write(df, "}")
-    end
+#     # Write the color function (Javascript)
+#     open(funfile, "w") do df
+#         write(df, "function getMoreColor(d) {")
+#         write(df, "return ")
+#         for (vv, cc) in zip(values[1:end-1], colorlisthex[1:end-1])
+#            write(df, "d < $(vv) ? '#$(cc)' :")
+#         end
+#         write(df, "'#$(colorlisthex[end])'; ")
+#         write(df, "}")
+#     end
                 
-    return nothing
+#     return nothing
     
-end
+# end
 
 
 """
