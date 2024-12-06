@@ -1,9 +1,6 @@
 @testset "CORA time series download" begin
     datasource = "CORA Timeseries"
 
-    query = DIVAndFairEase.prepare_query_new(datasource, parameter1, parameter2, datestart, dateend, 
-            mindepth, maxdepth, minlon, maxlon, minlat, maxlat)
-
     query = DIVAndFairEase.prepare_query_new(datasource, parameter1, parameter2, Dates.Date(datestart), Dates.Date(dateend), mindepth,maxdepth, minlon, maxlon, minlat, maxlat)
 
     outputfile = tempname() * ".nc"
@@ -15,7 +12,7 @@
             ],
             query, 
             response_stream=io);
-        @info(r.status)
+        @test r.status == 200
     end
 
     NCDataset(outputfile) do nc
