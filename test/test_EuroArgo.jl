@@ -31,5 +31,32 @@
     @test jsondata["query_parameters"][6]["column_name"] == "LATITUDE"
     @test jsondata["query_parameters"][6]["alias"] == "LATITUDE"
 
-
 end
+
+# @testset "Euro-Argo download" begin
+#     datasource = "Euro-Argo"
+
+
+#     query = DIVAndFairEase.prepare_query_new(datasource, parameter1, parameter2, datestart, dateend, 
+#             mindepth, maxdepth, minlon, maxlon, minlat, maxlat)
+
+#     outputfile = tempname() * ".nc"
+
+#     @time open(outputfile, "w") do io
+#         r = HTTP.request("POST", joinpath(beacon_services[datasource], "api/query"), 
+#             ["Content-type"=> "application/json",
+#              "Authorization" => "Bearer $(APItoken)"
+#             ],
+#             query, 
+#             response_stream=io);
+#         @test r.status == 200
+#     end
+
+#     NCDataset(outputfile) do nc
+#         @test length(nc["TEMP"][:]) == 1764
+#         @test sort(nc["TEMP"][:])[3] == 8.839001f0
+#         @test sort(nc["TIME"][:])[end] == DateTime("1990-12-19T00:00:00")
+#         @test sort(nc["LONGITUDE"][:])[1] == 12.347
+#         @test sort(nc["dataset_id"][:])[5] == 42773
+#     end
+# end
