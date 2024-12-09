@@ -9,7 +9,9 @@
     @info(outputfile);
 
     #@time open(outputfile, "w") do io
-    r = HTTP.request("POST", joinpath(beacon_services[datasource], "api/query"), 
+    endpoint = "https://beacon-cora-ts.maris.nl/api/query"
+    
+    r = HTTP.request("POST", endpoint, 
         ["Content-type"=> "application/json",
         "Authorization" => "Bearer $(APItoken)"
         ],
