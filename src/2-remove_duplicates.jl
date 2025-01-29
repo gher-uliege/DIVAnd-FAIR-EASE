@@ -39,6 +39,11 @@ begin
 	@info("Found $(nfiles) data files")
 end
 
+# ╔═╡ 508910fc-0db7-41e7-9b5a-9324fff38e74
+md"""
+## Region of interest
+"""
+
 # ╔═╡ ea3bb990-ff91-43cc-a78b-2c22e1643471
 domaininfo = OrderedDict(
 	"North_Adriatic" => [12., 18., 43., 46.],
@@ -67,6 +72,20 @@ md"""
 ## Read all the observations as vectors of vectors
 """
 
+# ╔═╡ f0770082-50be-4af1-83fa-00ae0a2882f7
+NCDataset(datafilelist[1]) do ds
+	# print(ds)
+	@info(typeof(coalesce.(ds["TIME"][:], NaN)))
+	if ds["TIME"][:] isa Vector{Float64}
+		@info("1")
+		
+	elseif ds["TIME"][:] isa Vector{String}
+		@info("2")
+	else
+		@info("3")
+	end
+end
+
 # ╔═╡ 707f5ae4-fcbe-4882-8ded-c5d1ea8f3a1b
 begin 
 	# Allocate vectors of vectors
@@ -94,15 +113,21 @@ begin
 			lonall[iii] = ds["LONGITUDE"][:]
        		latall[iii] = ds["LATITUDE"][:]
         	depthall[iii] = ds["DEPTH"][:]
-
+	
+			@info(typeof(ds["TIME"][:]))
+				
 			# Get time and convert if needed
-	        if ds["TIME"][:] isa Vector{Float64}
+	        if ds["TIME"][:] isa Vector{Union{Missing, Float64}}
 	            timesall[iii] = dateref .+ Millisecond.(round.(ds["TIME"][:] .* 86400 .* 1000))
 	            
 	        elseif ds["TIME"][:] isa Vector{String}
 	            @debug("Need to convert to Datatime object")
 	            df = dateformat"y-m-dTH:M:S"
 	            timesall[iii] = DateTime.(ds["TIME"][:], df)
+			elseif ds["TIME"][:] isa Vector{Union{Missing, DateTime}}
+				timesall[iii] = coalesce.(ds["TIME"][:], NaN)
+			else
+				@warn("Check the type of variable 'TIME'")
 	        end
 
 	        obsall[iii] = ds[keys(ds)[1]][:]
@@ -110,6 +135,11 @@ begin
 	    end
 	end
 end
+
+# ╔═╡ b919928b-121b-4e62-850e-7bcd24c39585
+md"""
+### Create a plot of the observations
+"""
 
 # ╔═╡ 1bcdc70e-e35d-4906-9fc3-d2f260d4d236
 if length(datafilelist) > 0
@@ -139,9 +169,6 @@ else
 	@warn("No file has been written, hence no plot will be produced")
 end
 
-# ╔═╡ abfd392c-b887-47a2-a515-687b27e470a9
-
-
 # ╔═╡ 48c45c91-0fdc-497c-bb58-b18b43ea6a71
 md"""
 ### Extract list of data sources
@@ -164,6 +191,7 @@ md"""
 ## Duplicate detection
 
 ### Set parameters (minimal allowed separation)
+Two observations are considered as duplicates if their separation (in longitude, latitude, depth and time) is shorter than the threshold values defined below, and the difference between the observation values is below the threshold value `Δvar`.
 """
 
 # ╔═╡ 81a4fe84-ca9e-4e5a-ad9f-f8fc6d4ebb92
@@ -179,6 +207,63 @@ end
 md"""
 ### Define function to remove duplicates
 """
+
+# ╔═╡ 4d8e4924-f721-44f8-823c-fed32a150895
+begin
+	lons = lonall[1]
+	lats = latall[1]
+	depths = depthall[1]
+	times = timesall[1] 
+	obs = obsall[1]
+	obsid222 = obsidall[1]
+end
+
+# ╔═╡ 8eac05cd-e070-4acf-ae77-b69631112ff4
+timesall[3]
+
+# ╔═╡ cdfa8d54-7239-470c-ab17-ec236d1c13df
+function merge_datasets2(lonall::Vector{Vector{Float64}},latall::Vector{Vector{Float64}}, 
+        depthall::Vector{Vector{Float64}}, timesall::Vector{Vector{DateTime}}, 
+        obsall::Vector{Vector{Float64}}, obsidall::Vector{Vector{String}}, Δlon::Float64, Δlat::Float64, Δdepth::Float64, 
+        Δtime::Float64, Δvar::Float64)
+    
+    pct = []
+
+	lons = lonall[1]
+	lats = latall[1]
+	depths = depthall[1]
+	times = timesall[1] 
+	obs = obsall[1]
+	obsid = obsidall[1]
+
+	ndatasets = length(lonall)
+	for jjj = 2:ndatasets
+		@info("Working on dataset #$(jjj)")
+
+		@info(length(lons));
+    	dupl = DIVAnd.Quadtrees.checkduplicates((lons, lats, depths,
+			times), obs, (lonall[jjj], latall[jjj], depthall[jjj], timesall[jjj]), obsall[jjj], (Δlon, Δlat, Δdepth, Δtime), Δvar);
+
+	    index = findall(.!isempty.(dupl))
+	    newpoints = findall(isempty.(dupl))
+	    ndupl = length(index)
+	    pcdupl = round(ndupl / length(lonall[jjj]) * 100; digits=2);
+	    push!(pct, pcdupl)
+	    @info("Number of possible duplicates: $ndupl")
+	    @info("Percentage of duplicates: $pcdupl%")
+	
+	    # Merging
+	    lons = vcat(lons, lonall[jjj][newpoints])
+	    lats = vcat(lats, latall[jjj][newpoints])
+	    depths = vcat(depths, depthall[jjj][newpoints])
+	    times = vcat(times, timesall[jjj][newpoints])
+	    obs = vcat(obs, obsall[jjj][newpoints])
+		obsid = vcat(obsid, obsidall[jjj][newpoints])
+	end
+	
+    return lons::Vector{Float64}, lats::Vector{Float64}, depths::Vector{Float64}, 
+    times::Vector{DateTime}, obs::Vector{Float64}, obsid::Vector{String}, pct::Vector
+end
 
 # ╔═╡ bfc9517b-5bd4-4901-8233-3dbbbd6f28a1
 function merge_datasets(lonall::Vector{Vector{Float64}},latall::Vector{Vector{Float64}}, 
@@ -253,7 +338,7 @@ end
 
 # ╔═╡ 112b847b-f1ae-4497-8caf-4aae4219285f
 begin
-	@time obslon, obslat, obsdepth, obstime, obsval, obsid, pct = merge_datasets(lonall, latall, depthall, timesall, 
+	@time obslon, obslat, obsdepth, obstime, obsval, obsid, pct = merge_datasets2(lonall, latall, depthall, timesall, 
 	        obsall, obsidall, Δlon, Δlat, Δdepth, Δtime, Δvar);
 end
 
@@ -2596,17 +2681,22 @@ version = "3.6.0+0"
 # ╠═8ee3812a-a28d-11ef-3fc8-216f6b8fac10
 # ╟─27caaaee-cc4e-4c48-ae34-5ff4d82b6f8a
 # ╠═de37d7d9-b40e-4dd5-8230-8cff530cdfb8
+# ╟─508910fc-0db7-41e7-9b5a-9324fff38e74
 # ╠═ea3bb990-ff91-43cc-a78b-2c22e1643471
 # ╠═fc62c6f9-7b73-4bce-ad69-28c9c750c877
 # ╟─69f26bb9-4153-44be-8e07-26c9fc923130
+# ╠═f0770082-50be-4af1-83fa-00ae0a2882f7
 # ╠═707f5ae4-fcbe-4882-8ded-c5d1ea8f3a1b
+# ╟─b919928b-121b-4e62-850e-7bcd24c39585
 # ╠═1bcdc70e-e35d-4906-9fc3-d2f260d4d236
-# ╠═abfd392c-b887-47a2-a515-687b27e470a9
 # ╟─48c45c91-0fdc-497c-bb58-b18b43ea6a71
 # ╠═9d84a5d3-2219-4382-b5d0-428f5b71e9fc
 # ╟─c6e017dc-91b5-4e64-90e3-e1285b41b4d5
 # ╠═81a4fe84-ca9e-4e5a-ad9f-f8fc6d4ebb92
 # ╟─044bd8bf-a436-48bc-8237-4c1f94637ba2
+# ╠═4d8e4924-f721-44f8-823c-fed32a150895
+# ╠═8eac05cd-e070-4acf-ae77-b69631112ff4
+# ╠═cdfa8d54-7239-470c-ab17-ec236d1c13df
 # ╠═bfc9517b-5bd4-4901-8233-3dbbbd6f28a1
 # ╠═112b847b-f1ae-4497-8caf-4aae4219285f
 # ╟─000cf629-36f4-49b8-bc81-7d7dce8d5f24
