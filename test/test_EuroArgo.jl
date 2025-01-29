@@ -1,10 +1,9 @@
 @testset "Euro-Argo query" begin
     datasource = "Euro-Argo"
-    parameter1 = "TEMP"
-    parameter2 = "PSAL"
+    parameter1 = "PSAL"
     dateref = Dates.Date(1950, 1, 1)
 
-    query = DIVAndFairEase.prepare_query_new(datasource, parameter1, parameter2, datestart, dateend, 
+    query = DIVAndFairEase.prepare_query(datasource, parameter1, datestart, dateend, 
             mindepth, maxdepth, minlon, maxlon, minlat, maxlat)
 
     jsondata = JSON3.read(query)
@@ -13,9 +12,9 @@
     @test length(jsondata["output"]) == 1
     @test jsondata["output"]["format"] == "netcdf"
 
-    @test jsondata["filters"][1]["for_query_parameter"] == "TIME"
-    @test jsondata["filters"][1]["min"] == (Dates.Date(1990, 1, 1) - dateref).value
-    @test jsondata["filters"][1]["max"] == (Dates.Date(1991, 1, 1) - dateref).value
+    @test jsondata["filters"][1]["for_query_parameter"] == "datetime"
+    @test jsondata["filters"][1]["min"] == Dates.format(datestart, "yyyy-mm-ddT00:00:00")
+    @test jsondata["filters"][1]["max"] == Dates.format(dateend, "yyyy-mm-ddT00:00:00")
 
     @test jsondata["filters"][2]["for_query_parameter"] == "DEPTH"
     @test jsondata["filters"][2]["min"] == mindepth 
@@ -33,30 +32,29 @@
 
 end
 
-# @testset "Euro-Argo download" begin
-#     datasource = "Euro-Argo"
+@testset "Euro-Argo download" begin
+    datasource = "Euro-Argo"
 
+    query = DIVAndFairEase.prepare_query(datasource, parameter1, datestart, dateend, 
+            mindepth, maxdepth, minlon, maxlon, minlat, maxlat)
 
-#     query = DIVAndFairEase.prepare_query_new(datasource, parameter1, parameter2, datestart, dateend, 
-#             mindepth, maxdepth, minlon, maxlon, minlat, maxlat)
+    outputfile = tempname() * ".nc"
 
-#     outputfile = tempname() * ".nc"
+    @time open(outputfile, "w") do io
+        r = HTTP.request("POST", joinpath(beacon_services[datasource], "api/query"), 
+            ["Content-type"=> "application/json",
+             "Authorization" => "Bearer $(APItoken)"
+            ],
+            query, 
+            response_stream=io);
+        @test r.status == 200
+    end
 
-#     @time open(outputfile, "w") do io
-#         r = HTTP.request("POST", joinpath(beacon_services[datasource], "api/query"), 
-#             ["Content-type"=> "application/json",
-#              "Authorization" => "Bearer $(APItoken)"
-#             ],
-#             query, 
-#             response_stream=io);
-#         @test r.status == 200
-#     end
-
-#     NCDataset(outputfile) do nc
-#         @test length(nc["TEMP"][:]) == 1764
-#         @test sort(nc["TEMP"][:])[3] == 8.839001f0
-#         @test sort(nc["TIME"][:])[end] == DateTime("1990-12-19T00:00:00")
-#         @test sort(nc["LONGITUDE"][:])[1] == 12.347
-#         @test sort(nc["dataset_id"][:])[5] == 42773
-#     end
-# end
+    NCDataset(outputfile) do nc
+        @test length(nc["TEMP"][:]) == 87
+        @test sort(nc["TEMP"][:])[3] == 12.468f0
+        @test sort(nc["datetime"][:])[end] == DateTime("2010-03-30T11:32:44")
+        @test sort(nc["LONGITUDE"][:])[1] == 15.39
+        @test sort(nc["dataset_id"][:])[5] == 2288342
+    end
+end
