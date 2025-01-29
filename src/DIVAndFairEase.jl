@@ -49,14 +49,14 @@ function varbyunits(footprintfile::String, units::Vector{String})
 end
 
 """
-    prepare_query(parameter1, parameter2, datestart, dateend, mindepth, maxdepth, minlon, maxlon, minlat, maxlat)
+    prepare_query(datasource, parameter1, datestart, dateend, mindepth, maxdepth, minlon, maxlon, minlat, maxlat)
 
 Prepare the JSON query that will be passed to the API, based on the data, depth and coordinate ranges.
 """
-function prepare_query_new(datasource::AbstractString, parameter1::String, parameter2::String, datestart::Date, dateend::Date, 
-        mindepth::Float64, maxdepth::Float64, minlon::Float64, maxlon::Float64, 
-        minlat::Float64, maxlat::Float64; dateref::Date=Dates.Date(1950, 1, 1)
-        )
+function prepare_query(datasource::AbstractString, parameter1::String, datestart::Date, dateend::Date, 
+    mindepth::Float64, maxdepth::Float64, minlon::Float64, maxlon::Float64, 
+    minlat::Float64, maxlat::Float64; dateref::Date=Dates.Date(1950, 1, 1)
+    )
 
     # The reference date can change according to the datasource!
     if datasource == "World Ocean Database"
@@ -70,8 +70,10 @@ function prepare_query_new(datasource::AbstractString, parameter1::String, param
 
     if datasource == "World Ocean Database"
         queryparams = [
-            OrderedDict("column_name" => parameter1, "alias" => parameter1),
-            OrderedDict("column_name" => "time", "alias" => "TIME"),
+            OrderedDict("column_name" => parameter1, "alias" => parameter1, "skip_fill_values" => true),
+            OrderedDict("column_name" => "$(parameter1).units",
+                "alias" => "Unit"),
+            OrderedDict("column_name" => "cf_datetime", "alias" => "datetime"),
             OrderedDict("column_name" => "z", "alias" => "DEPTH"),
             OrderedDict("column_name" => "lon", "alias" => "LONGITUDE"),
             OrderedDict("column_name" => "lat", "alias" => "LATITUDE"),
@@ -84,13 +86,16 @@ function prepare_query_new(datasource::AbstractString, parameter1::String, param
 
     elseif datasource == "SeaDataNet CDI TS"
         queryparams = [
-            OrderedDict("column_name" => parameter1, "alias" => parameter1),
-            OrderedDict("column_name" => "yyyy-mm-ddThh:mm:ss.sss", "alias" => "TIME"),
-            OrderedDict("column_name" => "Depth", "alias" => "DEPTH"), 
+            OrderedDict("column_name" => parameter1, "alias" => parameter1, "skip_fill_values" => true),
+            OrderedDict("column_name" => "$(parameter1)_qc", "alias" => "$(parameter1)_qc"),
+            OrderedDict("column_name" => "$(parameter1).units", "alias" => "Unit"),
+            OrderedDict("column_name" => "yyyy-mm-ddThh:mm:ss.sss", "alias" => "datetime"),
+            OrderedDict("column_name" => "Depth", "alias" => "DEPTH"),
+            OrderedDict("column_name" => "Depth_qc", "alias" => "Depth_qc"), 
             OrderedDict("column_name" => "Longitude", "alias" => "LONGITUDE"),
             OrderedDict("column_name" => "Latitude", "alias" => "LATITUDE")
         ]
-    
+
     elseif occursin("CORA", datasource)
         queryparams = [
             OrderedDict("column_name" => parameter1, "alias" => parameter1, "skip_fill_values" => true),
@@ -118,19 +123,19 @@ function prepare_query_new(datasource::AbstractString, parameter1::String, param
         ]
     else
         queryparams = [
-            OrderedDict("column_name" => parameter1, "alias" => parameter1, "optional" => false),
-            OrderedDict("column_name" => parameter2, "alias" => parameter2, "optional" => true),
-            OrderedDict("column_name" => "JULD", "alias" => "TIME"),
+            OrderedDict("column_name" => parameter1, "alias" => parameter1, "skip_fill_values" => true),
+            OrderedDict("column_name" => "$(parameter1).units", "alias" => "Unit"),
+            OrderedDict("column_name" => "cf_datetime", "alias" => "datetime"),
             OrderedDict("column_name" => "PRES", "alias" => "DEPTH"),
             OrderedDict("column_name" => "LONGITUDE", "alias" => "LONGITUDE"),
-            OrderedDict("column_name" => "LATITUDE", "alias" => "LATITUDE"),
+            OrderedDict("column_name" => "LATITUDE", "alias" => "LATITUDE")
         ]
     end
 
     # Filters for the coordinates and variables
     if datasource == "SeaDataNet CDI TS"
         filters = [
-            OrderedDict("for_query_parameter" =>  "TIME", "min" => Dates.format(datestart, "yyyymmddT00:00:00"), "max" => Dates.format(dateend, "yyyymmddT00:00:00")),
+            OrderedDict("for_query_parameter" =>  "datetime", "min" => Dates.format(datestart, "yyyy-mm-ddT00:00:00"), "max" => Dates.format(dateend, "yyyy-mm-ddT00:00:00"), "cast" => "timestamp"),
             OrderedDict("for_query_parameter" =>  "DEPTH", "min" => mindepth, "max" => maxdepth),
             OrderedDict("for_query_parameter" =>  "LONGITUDE", "min" => minlon, "max" => maxlon), 
             OrderedDict("for_query_parameter" =>  "LATITUDE", "min" => minlat, "max" => maxlat)
@@ -146,13 +151,16 @@ function prepare_query_new(datasource::AbstractString, parameter1::String, param
         ]
     else
         filters = [
-            OrderedDict("for_query_parameter" => "TIME", "min" => mintemporal, "max" => maxtemporal),
+            OrderedDict("for_query_parameter" => "datetime",
+                "min" => Dates.format(DateTime(datestart), "yyyy-mm-ddTHH:MM:SS"),
+                "max" => Dates.format(DateTime(dateend), "yyyy-mm-ddTHH:MM:SS"),
+                "cast" => "timestamp"),
             OrderedDict("for_query_parameter" => "DEPTH", "min" => mindepth, "max" => maxdepth),
             OrderedDict("for_query_parameter" => "LONGITUDE", "min" => minlon, "max" => maxlon),
             OrderedDict("for_query_parameter" => "LATITUDE", "min" => minlat, "max" => maxlat)
         ]
     end
-    
+
     paramdict = OrderedDict(
         "query_parameters" => queryparams,
         "filters" => filters,
@@ -162,109 +170,6 @@ function prepare_query_new(datasource::AbstractString, parameter1::String, param
     return body
 end
 
-
-"""
-    prepare_query(parameter, unit, datestart, dateend, mindepth, maxdept, minlon, maxlon, minlat, maxlat)
-
-Prepare the JSON query that will be passed to the API, based on the data, depth and coordinate ranges.
-"""
-function prepare_query(parameter::String, unit::String, datestart::Date, dateend::Date, 
-        mindepth::Float64, maxdepth::Float64, minlon::Float64, maxlon::Float64, minlat::Float64, maxlat::Float64;
-        dateref::Date=Dates.Date(1950, 1, 1)
-        )
-
-    mintemporal = (datestart - dateref).value
-    maxtemporal = (dateend - dateref).value
-
-    
-    # Start with an ordered dictionary, then convert to JSON
-    paramdict = OrderedDict(
-    "query_parameters" => [
-    OrderedDict("data_parameter" => parameter,
-        "unit"=> unit,
-        "skip_fill_values" => true,
-        "alias"=> "sea_water_temperature"),
-    OrderedDict("data_parameter"=> "time",
-        "unit"=> "days since 1950-01-01 00:00:00 UTC",
-        "skip_fill_values"=> false,
-        "alias"=> "TEMPORAL"),
-    OrderedDict("data_parameter"=> "sea_water_pressure",
-        "unit"=> "decibar",
-        "include_original_data"=> false,
-        "alias"=> "DEPTH"),
-    OrderedDict("data_parameter"=> "longitude",
-        "unit"=> "degree_east",
-        "skip_fill_values"=> false,
-        "alias"=> "LONGITUDE"),
-    OrderedDict("data_parameter"=> "latitude",
-        "unit"=> "degree_north",
-        "skip_fill_values"=> false,
-        "alias"=> "LATITUDE")],
-    "filters"=> [
-        OrderedDict("for_query_parameter" => Dict("alias"=> "TEMPORAL"), "min"=> mintemporal, "max"=> maxtemporal),
-        OrderedDict("for_query_parameter" => Dict("alias"=> "DEPTH"), "min"=> mindepth, "max"=> maxdepth),
-        OrderedDict("for_query_parameter" => Dict("alias"=> "LONGITUDE"), "min"=> minlon, "max"=> maxlon),
-        OrderedDict("for_query_parameter" => Dict("alias"=> "LATITUDE"), "min"=> minlat, "max"=> maxlat)
-    ],
-    "output" => Dict("format"=> "netcdf")
-    )
-
-    body = JSON3.write(paramdict)
-    return body::String
-end
-
-"""
-    prepare_query(parameter, unit, datestart, dateend, mindepth, maxdepth, regionpoly)
-
-Prepare the JSON query that will be passed to the API, based on the date and depth ranges, and the 
-coordinate polygon.
-"""
-function prepare_query(parameter::String, unit::String, datestart::Date, dateend::Date, 
-        mindepth::Float64, maxdepth::Float64, regionpoly::Vector{Any};
-        dateref::Date=Dates.Date(1950, 1, 1)
-        )
-
-    mintemporal = (datestart - dateref).value
-    maxtemporal = (dateend - dateref).value
-
-    
-    # Start with an ordered dictionary, then convert to JSON
-    paramdict = OrderedDict(
-    "query_parameters" => [
-    OrderedDict("data_parameter" => parameter,
-        "unit"=> unit,
-        "skip_fill_values" => true,
-        "alias"=> "sea_water_temperature"),
-    OrderedDict("data_parameter"=> "time",
-        "unit"=> "days since 1950-01-01 00:00:00 UTC",
-        "skip_fill_values"=> false,
-        "alias"=> "TEMPORAL"),
-    OrderedDict("data_parameter"=> "sea_water_pressure",
-        "unit"=> "decibar",
-        "include_original_data"=> false,
-        "alias"=> "DEPTH"),
-    OrderedDict("data_parameter"=> "longitude",
-        "unit"=> "degree_east",
-        "skip_fill_values"=> false,
-        "alias"=> "LONGITUDE"),
-    OrderedDict("data_parameter"=> "latitude",
-        "unit"=> "degree_north",
-        "skip_fill_values"=> false,
-        "alias"=> "LATITUDE")],
-    "filters"=> [
-        OrderedDict("for_query_parameter" => Dict("alias"=> "TEMPORAL"), "min"=> mintemporal, "max"=> maxtemporal),
-        OrderedDict("for_query_parameter" => Dict("alias"=> "DEPTH"), "min"=> mindepth, "max"=> maxdepth),
-        OrderedDict("longitude_query_parameter" => Dict("alias"=> "LONGITUDE"), 
-                    "latitude_query_parameter" => Dict("alias"=> "LATITUDE"),
-                    "geometry" => Dict("coordinates" => regionpoly, "type" => "Polygon")
-                    )
-    ],
-    "output" => Dict("format"=> "netcdf")
-    )
-
-    body = JSON3.write(paramdict)
-    return body::String
-end
 
 
 """
