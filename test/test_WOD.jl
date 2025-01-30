@@ -3,8 +3,18 @@
     datasource = "World Ocean Database"
 
     parameter1 = "Temperature"
-    query = DIVAndFairEase.prepare_query(datasource, parameter1, datestart, dateend, 
-            mindepth, maxdepth, minlon, maxlon, minlat, maxlat)
+    query = DIVAndFairEase.prepare_query(
+        datasource,
+        parameter1,
+        datestart,
+        dateend,
+        mindepth,
+        maxdepth,
+        minlon,
+        maxlon,
+        minlat,
+        maxlat,
+    )
 
     jsondata = JSON3.read(query)
 
@@ -17,13 +27,13 @@
     @test jsondata["filters"][1]["max"] == Dates.format(dateend, "yyyy-mm-ddT00:00:00")
 
     @test jsondata["filters"][2]["for_query_parameter"] == "DEPTH"
-    @test jsondata["filters"][2]["min"] == mindepth 
-    @test jsondata["filters"][2]["max"] == maxdepth 
+    @test jsondata["filters"][2]["min"] == mindepth
+    @test jsondata["filters"][2]["max"] == maxdepth
 
     @test jsondata["filters"][3]["for_query_parameter"] == "LONGITUDE"
     @test jsondata["filters"][3]["min"] == minlon
     @test jsondata["filters"][3]["max"] == maxlon
-    
+
     @test jsondata["query_parameters"][1]["column_name"] == parameter1
     @test jsondata["query_parameters"][1]["alias"] == parameter1
     @test jsondata["query_parameters"][5]["column_name"] == "lon"
@@ -34,18 +44,29 @@ end
 @testset "WOD download" begin
     datasource = "World Ocean Database"
     parameter1 = "Temperature"
-    query = DIVAndFairEase.prepare_query(datasource, parameter1, datestart, dateend, 
-            mindepth, maxdepth, minlon, maxlon, minlat, maxlat)
+    query = DIVAndFairEase.prepare_query(
+        datasource,
+        parameter1,
+        datestart,
+        dateend,
+        mindepth,
+        maxdepth,
+        minlon,
+        maxlon,
+        minlat,
+        maxlat,
+    )
 
     outputfile = tempname() * ".nc"
 
     @time open(outputfile, "w") do io
-        r = HTTP.request("POST", joinpath(beacon_services[datasource], "api/query"), 
-            ["Content-type"=> "application/json",
-             "Authorization" => "Bearer $(APItoken)"
-            ],
-            query, 
-            response_stream=io);
+        r = HTTP.request(
+            "POST",
+            joinpath(beacon_services[datasource], "api/query"),
+            ["Content-type" => "application/json", "Authorization" => "Bearer $(APItoken)"],
+            query,
+            response_stream = io,
+        )
         @test r.status == 200
     end
 

@@ -10,15 +10,15 @@ APItoken = ENV["beaconAPItoken"];
 
 # Define period of interest and domain
 domain = [12.1, 17.85, 43.12, 45.95]
-datestart = Dates.Date(1990, 1, 1)
-dateend = Dates.Date(1991, 1, 1)
+datestart = Dates.Date(2010, 1, 1)
+dateend = Dates.Date(2011, 1, 1)
 
 minlon = domain[1]
 maxlon = domain[2]
 minlat = domain[3]
 maxlat = domain[4]
-mindepth = 10. #Minimum water depth
-maxdepth = 400. 
+mindepth = 10.0 #Minimum water depth
+maxdepth = 400.0
 
 const beacon_services = OrderedDict(
     "Euro-Argo" => "https://beacon-argo.maris.nl",
@@ -31,7 +31,6 @@ const beacon_services = OrderedDict(
 );
 
 parameter1 = "TEMP"
-parameter2 = "PSAL"
 
 include("./test_CORA_Timeseries.jl")
 include("./test_CORA_Profiles.jl")
