@@ -54,8 +54,8 @@ end
 Prepare the JSON query that will be passed to the API, based on the data, depth and coordinate ranges.
 """
 function prepare_query(datasource::AbstractString, parameter1::String, datestart::Date, dateend::Date, 
-    mindepth::Float64, maxdepth::Float64, minlon::Float64, maxlon::Float64, 
-    minlat::Float64, maxlat::Float64; dateref::Date=Dates.Date(1950, 1, 1)
+    mindepth::Union{Int64,Float64}, maxdepth::Union{Int64,Float64}, minlon::Union{Int64,Float64}, maxlon::Union{Int64,Float64}, 
+    minlat::Union{Int64,Float64}, maxlat::Union{Int64,Float64}; dateref::Date=Dates.Date(1950, 1, 1)
     )
 
     # The reference date can change according to the datasource!
@@ -99,7 +99,7 @@ function prepare_query(datasource::AbstractString, parameter1::String, datestart
     elseif occursin("CORA", datasource)
         queryparams = [
             OrderedDict("column_name" => parameter1, "alias" => parameter1, "skip_fill_values" => true),
-            OrderedDict("column_name" => "cf_datetime", "alias" => "TIME"),
+            OrderedDict("column_name" => "cf_datetime", "alias" => "datetime"),
             OrderedDict("column_name" => "DEPH", "alias" => "DEPTH"),
             OrderedDict("column_name" => "LONGITUDE", "alias" => "LONGITUDE"),
             OrderedDict("column_name" => "LATITUDE", "alias" => "LATITUDE")
@@ -143,11 +143,10 @@ function prepare_query(datasource::AbstractString, parameter1::String, datestart
     elseif occursin("CORA", datasource)
         @info("Working with CORA dataset")
         filters = [
-            OrderedDict("for_query_parameter" => "TIME", "min" => Dates.format(datestart, "yyyy-mm-ddT00:00:00"), "max" => Dates.format(dateend, "yyyy-mm-ddT00:00:00"), "cast" => "timestamp"),
+            OrderedDict("for_query_parameter" => "datetime", "min" => Dates.format(datestart, "yyyy-mm-ddT00:00:00"), "max" => Dates.format(dateend, "yyyy-mm-ddT00:00:00"), "cast" => "timestamp"),
             OrderedDict("for_query_parameter" => "DEPTH", "min" => mindepth, "max" => maxdepth),
             OrderedDict("for_query_parameter" => "LONGITUDE", "min" => minlon, "max" => maxlon),
-            OrderedDict("for_query_parameter" => "LATITUDE", "min" => minlat, "max" => maxlat),
-            OrderedDict("for_query_parameter" => parameter1, "min" => -2., "max" => 30.)
+            OrderedDict("for_query_parameter" => "LATITUDE", "min" => minlat, "max" => maxlat)
         ]
     else
         filters = [
