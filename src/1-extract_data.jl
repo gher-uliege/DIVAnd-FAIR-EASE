@@ -188,119 +188,127 @@ __⚠️ Weakness:__ the queries depend on the data source, for instance the var
 
 # ╔═╡ 6d7207d7-ea88-4a14-ac64-7a4a9e7035ee
 """
-    prepare_query(parameter1, parameter2, datestart, dateend, mindepth, maxdepth, minlon, maxlon, minlat, maxlat)
+    prepare_query(datasource, parameter1, datestart, dateend, mindepth, maxdepth, minlon, maxlon, minlat, maxlat)
 
 Prepare the JSON query that will be passed to the API, based on the data, depth and coordinate ranges.
 """
-function prepare_query(datasource::AbstractString, parameter1::String, parameter2::String, datestart::Date, dateend::Date, 
-        mindepth::Float64, maxdepth::Float64, minlon::Float64, maxlon::Float64, 
-        minlat::Float64, maxlat::Float64; dateref::Date=Dates.Date(1950, 1, 1)
-        )
-
-    # The reference date can change according to the datasource!
-    if datasource == "World Ocean Database"
-        dateref = Dates.Date(1770, 1, 1)
-    elseif datasource == "EMODnet Chemistry" 
-        dateref = Dates.Date(1921, 1, 1)
-    end
-
-    mintemporal = (datestart - dateref).value
-    maxtemporal = (dateend - dateref).value
-
-    if datasource == "World Ocean Database"
-        queryparams = [
-            OrderedDict("column_name" => parameter1, "alias" => parameter1),
-            OrderedDict("column_name" => "time", "alias" => "TIME"),
-            OrderedDict("column_name" => "z", "alias" => "DEPTH"),
-            OrderedDict("column_name" => "lon", "alias" => "LONGITUDE"),
-            OrderedDict("column_name" => "lat", "alias" => "LATITUDE"),
-            OrderedDict("column_name" => "dataset", "alias" => "DATASET", "optional" => true),
-            OrderedDict("column_name" => "WOD_cruise_identifier", "alias" => "cruise-identifier", "optional" => true),
-            OrderedDict("column_name" => "wod_unique_cast", "alias" => "cast", "optional" => true),
-            OrderedDict("column_name" => "WMO_ID", "alias" => "WMO_ID", "optional" => true),
-            OrderedDict("column_name" => "country", "alias" => "country", "optional" => true)
-        ]
-
-    elseif datasource == "SeaDataNet CDI TS"
-        queryparams = [
-            OrderedDict("column_name" => parameter1, "alias" => parameter1),
-            OrderedDict("column_name" => "yyyy-mm-ddThh:mm:ss.sss", "alias" => "TIME"),
-            OrderedDict("column_name" => "Depth", "alias" => "DEPTH"), 
-            OrderedDict("column_name" => "Longitude", "alias" => "LONGITUDE"),
-            OrderedDict("column_name" => "Latitude", "alias" => "LATITUDE")
-        ]
-    
-    elseif occursin("CORA", datasource)
-        queryparams = [
-            OrderedDict("column_name" => parameter1, "alias" => parameter1, "skip_fill_values" => true),
-            OrderedDict("column_name" => "cf_datetime", "alias" => "TIME"),
-            OrderedDict("column_name" => "DEPH", "alias" => "DEPTH"),
-            OrderedDict("column_name" => "LONGITUDE", "alias" => "LONGITUDE"),
-            OrderedDict("column_name" => "LATITUDE", "alias" => "LATITUDE")
-        ]
-    elseif occursin("CMEMS", datasource)
-        queryparams = [
-            OrderedDict("column_name" => parameter1, "alias" => parameter1),
-            OrderedDict("column_name" => parameter1, "column_attribute" => "scale_factor", "alias" => "scale_factor"),
-            OrderedDict("column_name" => "JULD", "alias" => "TIME"),
-            OrderedDict("column_name" => "DEPH", "alias" => "DEPTH"),
-            OrderedDict("column_name" => "LONGITUDE", "alias" => "LONGITUDE"),
-            OrderedDict("column_name" => "LATITUDE", "alias" => "LATITUDE")
-        ]
-    elseif datasource == "EMODnet Chemistry"
-        queryparams = [
-            OrderedDict("column_name" => parameter1, "alias" => parameter1),
-            OrderedDict("column_name" => "date_time", "alias" => "TIME"), 
-            OrderedDict("column_name" => "Depth", "alias" => "DEPTH"),
-            OrderedDict("column_name" => "longitude", "alias" => "LONGITUDE"),
-            OrderedDict("column_name" => "latitude", "alias" => "LATITUDE")
-        ]
-    else
-        queryparams = [
-            OrderedDict("column_name" => parameter1, "alias" => parameter1, "optional" => false),
-            OrderedDict("column_name" => parameter2, "alias" => parameter2, "optional" => true),
-            OrderedDict("column_name" => "JULD", "alias" => "TIME"),
-            OrderedDict("column_name" => "PRES", "alias" => "DEPTH"),
-            OrderedDict("column_name" => "LONGITUDE", "alias" => "LONGITUDE"),
-            OrderedDict("column_name" => "LATITUDE", "alias" => "LATITUDE"),
-        ]
-    end
-
-    # Filters for the coordinates and variables
-    if datasource == "SeaDataNet CDI TS"
-        filters = [
-            OrderedDict("for_query_parameter" =>  "TIME", "min" => Dates.format(datestart, "yyyymmddT00:00:00"), "max" => Dates.format(dateend, "yyyymmddT00:00:00")),
-            OrderedDict("for_query_parameter" =>  "DEPTH", "min" => mindepth, "max" => maxdepth),
-            OrderedDict("for_query_parameter" =>  "LONGITUDE", "min" => minlon, "max" => maxlon), 
-            OrderedDict("for_query_parameter" =>  "LATITUDE", "min" => minlat, "max" => maxlat)
-        ]
-    elseif occursin("CORA", datasource)
-        @info("Working with CORA dataset")
-        filters = [
-            OrderedDict("for_query_parameter" => "TIME", "min" => Dates.format(datestart, "yyyy-mm-ddT00:00:00"), "max" => Dates.format(dateend, "yyyy-mm-ddT00:00:00"), "cast" => "timestamp"),
-            OrderedDict("for_query_parameter" => "DEPTH", "min" => mindepth, "max" => maxdepth),
-            OrderedDict("for_query_parameter" => "LONGITUDE", "min" => minlon, "max" => maxlon),
-            OrderedDict("for_query_parameter" => "LATITUDE", "min" => minlat, "max" => maxlat),
-            OrderedDict("for_query_parameter" => parameter1, "min" => -2., "max" => 30.)
-        ]
-    else
-        filters = [
-            OrderedDict("for_query_parameter" => "TIME", "min" => mintemporal, "max" => maxtemporal),
-            OrderedDict("for_query_parameter" => "DEPTH", "min" => mindepth, "max" => maxdepth),
-            OrderedDict("for_query_parameter" => "LONGITUDE", "min" => minlon, "max" => maxlon),
-            OrderedDict("for_query_parameter" => "LATITUDE", "min" => minlat, "max" => maxlat)
-        ]
-    end
-    
-    paramdict = OrderedDict(
-        "query_parameters" => queryparams,
-        "filters" => filters,
-        "output" => Dict("format"=> "netcdf")
-    )
-    body = JSON3.write(paramdict);
-    return body
+begin
+	function prepare_query(datasource::AbstractString, parameter1::String, datestart::Date, dateend::Date, 
+	    mindepth::Union{Int64,Float64}, maxdepth::Union{Int64,Float64}, minlon::Union{Int64,Float64}, maxlon::Union{Int64,Float64}, 
+	    minlat::Union{Int64,Float64}, maxlat::Union{Int64,Float64}; dateref::Date=Dates.Date(1950, 1, 1)
+	    )
+	
+	    # The reference date can change according to the datasource!
+	    if datasource == "World Ocean Database"
+	        dateref = Dates.Date(1770, 1, 1)
+	    elseif datasource == "EMODnet Chemistry" 
+	        dateref = Dates.Date(1921, 1, 1)
+	    end
+	
+	    mintemporal = (datestart - dateref).value
+	    maxtemporal = (dateend - dateref).value
+	
+	    if datasource == "World Ocean Database"
+	        queryparams = [
+	            OrderedDict("column_name" => parameter1, "alias" => parameter1, "skip_fill_values" => true),
+	            OrderedDict("column_name" => "$(parameter1).units",
+	                "alias" => "Unit"),
+	            OrderedDict("column_name" => "cf_datetime", "alias" => "datetime"),
+	            OrderedDict("column_name" => "z", "alias" => "DEPTH"),
+	            OrderedDict("column_name" => "lon", "alias" => "LONGITUDE"),
+	            OrderedDict("column_name" => "lat", "alias" => "LATITUDE"),
+	            OrderedDict("column_name" => "dataset", "alias" => "DATASET", "optional" => true),
+	            OrderedDict("column_name" => "WOD_cruise_identifier", "alias" => "cruise-identifier", "optional" => true),
+	            OrderedDict("column_name" => "wod_unique_cast", "alias" => "cast", "optional" => true),
+	            OrderedDict("column_name" => "WMO_ID", "alias" => "WMO_ID", "optional" => true),
+	            OrderedDict("column_name" => "country", "alias" => "country", "optional" => true)
+	        ]
+	
+	    elseif datasource == "SeaDataNet CDI TS"
+	        queryparams = [
+	            OrderedDict("column_name" => parameter1, "alias" => parameter1, "skip_fill_values" => true),
+	            OrderedDict("column_name" => "$(parameter1)_qc", "alias" => "$(parameter1)_qc"),
+	            OrderedDict("column_name" => "$(parameter1).units", "alias" => "Unit"),
+	            OrderedDict("column_name" => "yyyy-mm-ddThh:mm:ss.sss", "alias" => "datetime"),
+	            OrderedDict("column_name" => "Depth", "alias" => "DEPTH"),
+	            OrderedDict("column_name" => "Depth_qc", "alias" => "Depth_qc"), 
+	            OrderedDict("column_name" => "Longitude", "alias" => "LONGITUDE"),
+	            OrderedDict("column_name" => "Latitude", "alias" => "LATITUDE")
+	        ]
+	
+	    elseif occursin("CORA", datasource)
+	        queryparams = [
+	            OrderedDict("column_name" => parameter1, "alias" => parameter1, "skip_fill_values" => true),
+	            OrderedDict("column_name" => "cf_datetime", "alias" => "datetime"),
+	            OrderedDict("column_name" => "DEPH", "alias" => "DEPTH"),
+	            OrderedDict("column_name" => "LONGITUDE", "alias" => "LONGITUDE"),
+	            OrderedDict("column_name" => "LATITUDE", "alias" => "LATITUDE")
+	        ]
+	    elseif occursin("CMEMS", datasource)
+	        queryparams = [
+	            OrderedDict("column_name" => parameter1, "alias" => parameter1),
+	            OrderedDict("column_name" => parameter1, "column_attribute" => "scale_factor", "alias" => "scale_factor"),
+	            OrderedDict("column_name" => "JULD", "alias" => "TIME"),
+	            OrderedDict("column_name" => "DEPH", "alias" => "DEPTH"),
+	            OrderedDict("column_name" => "LONGITUDE", "alias" => "LONGITUDE"),
+	            OrderedDict("column_name" => "LATITUDE", "alias" => "LATITUDE")
+	        ]
+	    elseif datasource == "EMODnet Chemistry"
+	        queryparams = [
+	            OrderedDict("column_name" => parameter1, "alias" => parameter1),
+	            OrderedDict("column_name" => "date_time", "alias" => "TIME"), 
+	            OrderedDict("column_name" => "Depth", "alias" => "DEPTH"),
+	            OrderedDict("column_name" => "longitude", "alias" => "LONGITUDE"),
+	            OrderedDict("column_name" => "latitude", "alias" => "LATITUDE")
+	        ]
+	    else
+	        queryparams = [
+	            OrderedDict("column_name" => parameter1, "alias" => parameter1, "skip_fill_values" => true),
+	            OrderedDict("column_name" => "$(parameter1).units", "alias" => "Unit"),
+	            OrderedDict("column_name" => "cf_datetime", "alias" => "datetime"),
+	            OrderedDict("column_name" => "PRES", "alias" => "DEPTH"),
+	            OrderedDict("column_name" => "LONGITUDE", "alias" => "LONGITUDE"),
+	            OrderedDict("column_name" => "LATITUDE", "alias" => "LATITUDE")
+	        ]
+	    end
+	
+	    # Filters for the coordinates and variables
+	    if datasource == "SeaDataNet CDI TS"
+	        filters = [
+	            OrderedDict("for_query_parameter" =>  "datetime", "min" => Dates.format(datestart, "yyyy-mm-ddT00:00:00"), "max" => Dates.format(dateend, "yyyy-mm-ddT00:00:00"), "cast" => "timestamp"),
+	            OrderedDict("for_query_parameter" =>  "DEPTH", "min" => mindepth, "max" => maxdepth),
+	            OrderedDict("for_query_parameter" =>  "LONGITUDE", "min" => minlon, "max" => maxlon), 
+	            OrderedDict("for_query_parameter" =>  "LATITUDE", "min" => minlat, "max" => maxlat)
+	        ]
+	    elseif occursin("CORA", datasource)
+	        @info("Working with CORA dataset")
+	        filters = [
+	            OrderedDict("for_query_parameter" => "datetime", "min" => Dates.format(datestart, "yyyy-mm-ddT00:00:00"), "max" => Dates.format(dateend, "yyyy-mm-ddT00:00:00"), "cast" => "timestamp"),
+	            OrderedDict("for_query_parameter" => "DEPTH", "min" => mindepth, "max" => maxdepth),
+	            OrderedDict("for_query_parameter" => "LONGITUDE", "min" => minlon, "max" => maxlon),
+	            OrderedDict("for_query_parameter" => "LATITUDE", "min" => minlat, "max" => maxlat)
+	        ]
+	    else
+	        filters = [
+	            OrderedDict("for_query_parameter" => "datetime",
+	                "min" => Dates.format(DateTime(datestart), "yyyy-mm-ddTHH:MM:SS"),
+	                "max" => Dates.format(DateTime(dateend), "yyyy-mm-ddTHH:MM:SS"),
+	                "cast" => "timestamp"),
+	            OrderedDict("for_query_parameter" => "DEPTH", "min" => mindepth, "max" => maxdepth),
+	            OrderedDict("for_query_parameter" => "LONGITUDE", "min" => minlon, "max" => maxlon),
+	            OrderedDict("for_query_parameter" => "LATITUDE", "min" => minlat, "max" => maxlat)
+	        ]
+	    end
+	
+	    paramdict = OrderedDict(
+	        "query_parameters" => queryparams,
+	        "filters" => filters,
+	        "output" => Dict("format"=> "netcdf")
+	    )
+	    body = JSON3.write(paramdict);
+	    return body
+	end
 end
-
 
 # ╔═╡ 0b5c88a4-e68b-4674-8e70-06cffb7bcd9e
 md"""
@@ -334,36 +342,10 @@ begin
 	    end
 	    parameter2 = "PSAL"
 	    
-	    # Download the "footprint"
-	    beaconURL = beacon_services[datasource]
-	    footprintURL = joinpath(beaconURL, "api/datasets/footprint")
-	    datasource_name = replace(datasource, " " => "_")
-	    footprintfile = joinpath(footprintdir, "Footprint_$(datasource_name).json")
-	    @debug("Footprint endpoint: $(footprintURL)")
-	    @info("Footprint file: $(footprintfile)")
-	    
-	    if isfile(footprintfile)
-	        @info("Footprint file already downloaded")
-	    else
-	        @info("Writing Footprint file")
-	        open(footprintfile, "w") do io
-	            r = HTTP.request("GET", footprintURL, 
-	                ["Authorization" => "Bearer $(token)"],
-	                response_stream=io)
-	            @info(r.status)
-	        end
-	    end
-	    
-	    data = JSON.parsefile(footprintfile);
-	    attributes = data["unique_column_attributes"]
-	    params = sort(collect(keys(attributes)));
-	    
-	    # Check if the parameters is in the list
-	    parameter1 in params ? @info("Parameter available") : @warn("Parameter not available")
-	    # @show(params);
+	    datasource_name = replace(datasource, " " => "-")
 	    
 	    # Build query
-	    query = prepare_query(datasource, parameter1, parameter2, Dates.Date(datestart), Dates.Date(dateend), mindepth, maxdepth, minlon, maxlon, minlat, maxlat)
+	    query = prepare_query(datasource, parameter1, Dates.Date(datestart), Dates.Date(dateend), mindepth, maxdepth, minlon, maxlon, minlat, maxlat)
 	    
 	    # Construct file and figure names
 	    filename = joinpath(datadir, "$(regionname)_$(datasource_name)_$(replace(parameter1, " "=>"_"))_$(Dates.format(datestart, "yyyymmdd"))-$(Dates.format(dateend, "yyyymmdd"))_$(Int(mindepth))-$(Int(maxdepth))m.nc");
@@ -375,7 +357,7 @@ begin
 	        rm(filename)
 	    end
 	    @time open(filename, "w") do io
-	        r = HTTP.request("POST", joinpath(beaconURL, "api/query"), 
+	        r = HTTP.request("POST", joinpath(beacon_services[datasource], "api/query"), 
 	            ["Content-type"=> "application/json",
 	             "Authorization" => "Bearer $(token)"
 	            ],
@@ -2325,7 +2307,7 @@ version = "3.6.0+0"
 # ╟─6a6793e2-6cf9-4995-9f6b-f76a1670f4c8
 # ╟─7c46cb85-15cf-4900-942c-2086ac07ba94
 # ╟─c96e488c-f559-46e8-bee1-8631af5fe639
-# ╠═6d7207d7-ea88-4a14-ac64-7a4a9e7035ee
+# ╟─6d7207d7-ea88-4a14-ac64-7a4a9e7035ee
 # ╟─0b5c88a4-e68b-4674-8e70-06cffb7bcd9e
 # ╟─1628eb7f-b6ce-4b43-a7fa-e7d15988c127
 # ╟─084304e3-1160-4eba-8668-dffa3a0af6f8
