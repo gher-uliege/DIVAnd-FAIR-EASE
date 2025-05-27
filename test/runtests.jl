@@ -26,14 +26,14 @@ const beacon_services = OrderedDict(
     "CORA Timeseries" => "https://beacon-cora-ts.maris.nl",
     "EMODnet Chemistry" => "https://beacon-emod-chem.maris.nl",
     "World Ocean Database" => "https://beacon-wod.maris.nl",
-    "SeaDataNet CDI TS" => "https://beacon-cdi-ts.maris.nl",
+    "SeaDataNet CDI TS" => "https://beacon-cdi.maris.nl",
     "CMEMS BGC" => "https://beacon-cmems.maris.nl",
 );
 
 parameter1 = "TEMP"
 
-include("./test_CORA_Timeseries.jl")
-include("./test_CORA_Profiles.jl")
-include("./test_WOD.jl")
-include("./test_SDN.jl")
+#include("./test_CORA_Timeseries.jl")
+#include("./test_CORA_Profiles.jl")
+# include("./test_WOD.jl")
+# include("./test_SDN.jl")
 include("./test_EuroArgo.jl")

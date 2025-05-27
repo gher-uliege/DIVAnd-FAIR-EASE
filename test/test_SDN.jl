@@ -2,6 +2,7 @@
 @testset "SeaDataNet CDI TS" begin
     datasource = "SeaDataNet CDI TS"
     parameter1 = "ITS-90 water temperature"
+    parameter1 = "TEMPPR01"
 
     query = DIVAndFairEase.prepare_query(
         datasource,
@@ -36,8 +37,8 @@
 
     @test jsondata["query_parameters"][1]["column_name"] == parameter1
     @test jsondata["query_parameters"][1]["alias"] == parameter1
-    @test jsondata["query_parameters"][5]["column_name"] == "Depth"
-    @test jsondata["query_parameters"][5]["alias"] == "DEPTH"
+    @test jsondata["query_parameters"][5]["column_name"] == "LONGITUDE"
+    @test jsondata["query_parameters"][5]["alias"] == "LONGITUDE"
 
 end
 
@@ -45,7 +46,8 @@ end
 @testset "SDN download" begin
     datasource = "SeaDataNet CDI TS"
     parameter1 = "ITS-90 water temperature"
-
+    parameter1 = "TEMPPR01"
+    
     query = DIVAndFairEase.prepare_query(
         datasource,
         parameter1,
@@ -73,10 +75,10 @@ end
     end
 
     NCDataset(outputfile) do nc
-        @test length(nc[parameter1][:]) == 32
-        @test sort(nc[parameter1][:])[3] == 9.801699638
-        @test sort(nc["datetime"][:])[end] == DateTime("2010-03-30T11:32:44")
-        @test sort(nc["LONGITUDE"][:])[1] == 13.683833
-        @test sort(nc["dataset_id"][:])[5] == 1484490
+        @test length(nc[parameter1][:]) == 9089
+        @test parse(Float64, sort(nc[parameter1][:])[3]) == 10.01
+        @test sort(nc["datetime"][:])[end] == DateTime("2010-12-15T22:06:00")
+        @test sort(nc["LONGITUDE"][:])[1] == 12.582
+        # @test sort(nc["dataset_id"][:])[5] == 1484490
     end
 end

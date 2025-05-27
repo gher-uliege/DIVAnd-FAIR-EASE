@@ -71,9 +71,9 @@ function prepare_query(datasource::AbstractString, parameter1::String, datestart
     if datasource == "World Ocean Database"
         queryparams = [
             OrderedDict("column_name" => parameter1, "alias" => parameter1, "skip_fill_values" => true),
-            OrderedDict("column_name" => "$(parameter1).units",
-                "alias" => "Unit"),
-            OrderedDict("column_name" => "cf_datetime", "alias" => "datetime"),
+            OrderedDict("column_name" => "$(parameter1).units", "alias" => "Unit"),
+            # OrderedDict("column_name" => "cf_datetime", "alias" => "datetime"),
+            OrderedDict("column_name" => "time", "alias" => "datetime"),
             OrderedDict("column_name" => "z", "alias" => "DEPTH"),
             OrderedDict("column_name" => "lon", "alias" => "LONGITUDE"),
             OrderedDict("column_name" => "lat", "alias" => "LATITUDE"),
@@ -86,20 +86,22 @@ function prepare_query(datasource::AbstractString, parameter1::String, datestart
 
     elseif datasource == "SeaDataNet CDI TS"
         queryparams = [
-            OrderedDict("column_name" => parameter1, "alias" => parameter1, "skip_fill_values" => true),
-            OrderedDict("column_name" => "$(parameter1)_qc", "alias" => "$(parameter1)_qc"),
+            OrderedDict("column_name" => parameter1, "alias" => parameter1),
+            #OrderedDict("column_name" => "$(parameter1)_qc", "alias" => "$(parameter1)_qc"),
             OrderedDict("column_name" => "$(parameter1).units", "alias" => "Unit"),
-            OrderedDict("column_name" => "yyyy-mm-ddThh:mm:ss.sss", "alias" => "datetime"),
-            OrderedDict("column_name" => "Depth", "alias" => "DEPTH"),
-            OrderedDict("column_name" => "Depth_qc", "alias" => "Depth_qc"), 
-            OrderedDict("column_name" => "Longitude", "alias" => "LONGITUDE"),
-            OrderedDict("column_name" => "Latitude", "alias" => "LATITUDE")
+            #OrderedDict("column_name" => "yyyy-mm-ddThh:mm:ss.sss", "alias" => "datetime"),
+            OrderedDict("column_name" => "TIME", "alias" => "datetime"),
+            OrderedDict("column_name" => "DEPTH", "alias" => "DEPTH"),
+            # OrderedDict("column_name" => "Depth_qc", "alias" => "Depth_qc"), 
+            OrderedDict("column_name" => "LONGITUDE", "alias" => "LONGITUDE"),
+            OrderedDict("column_name" => "LATITUDE", "alias" => "LATITUDE")
         ]
 
     elseif occursin("CORA", datasource)
         queryparams = [
             OrderedDict("column_name" => parameter1, "alias" => parameter1, "skip_fill_values" => true),
-            OrderedDict("column_name" => "cf_datetime", "alias" => "datetime"),
+            # OrderedDict("column_name" => "cf_datetime", "alias" => "datetime"),
+            OrderedDict("column_name" => "TIME", "alias" => "datetime"),
             OrderedDict("column_name" => "DEPH", "alias" => "DEPTH"),
             OrderedDict("column_name" => "LONGITUDE", "alias" => "LONGITUDE"),
             OrderedDict("column_name" => "LATITUDE", "alias" => "LATITUDE")
@@ -151,8 +153,8 @@ function prepare_query(datasource::AbstractString, parameter1::String, datestart
     else
         filters = [
             OrderedDict("for_query_parameter" => "datetime",
-                "min" => Dates.format(DateTime(datestart), "yyyy-mm-ddTHH:MM:SS"),
-                "max" => Dates.format(DateTime(dateend), "yyyy-mm-ddTHH:MM:SS"),
+                "min" => Dates.format(DateTime(datestart), "yyyy-mm-dd00:00:00"),
+                "max" => Dates.format(DateTime(dateend), "yyyy-mm-ddT00:00:00"),
                 "cast" => "timestamp"),
             OrderedDict("for_query_parameter" => "DEPTH", "min" => mindepth, "max" => maxdepth),
             OrderedDict("for_query_parameter" => "LONGITUDE", "min" => minlon, "max" => maxlon),

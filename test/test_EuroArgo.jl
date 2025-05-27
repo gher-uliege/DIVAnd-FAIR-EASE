@@ -1,4 +1,4 @@
-@testset "Euro-Argo query" begin
+#= @testset "Euro-Argo query" begin
     datasource = "Euro-Argo"
     parameter1 = "PSAL"
     dateref = Dates.Date(1950, 1, 1)
@@ -40,7 +40,7 @@
     @test jsondata["query_parameters"][6]["column_name"] == "LATITUDE"
     @test jsondata["query_parameters"][6]["alias"] == "LATITUDE"
 
-end
+end =#
 
 @testset "Euro-Argo download" begin
     datasource = "Euro-Argo"

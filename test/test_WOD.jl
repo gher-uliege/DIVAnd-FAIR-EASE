@@ -75,6 +75,6 @@ end
         @test sort(nc["Temperature"][:])[3] == 12.563f0
         @test sort(nc["datetime"][:])[end] == DateTime("2010-03-30T11:31:51")
         @test sort(nc["LONGITUDE"][:])[1] == 15.39f0
-        @test sort(nc["dataset_id"][:])[5] == 11467418
+        # @test sort(nc["dataset_id"][:])[5] == 11467418 # → variable doesn't exist anymore
     end
 end
