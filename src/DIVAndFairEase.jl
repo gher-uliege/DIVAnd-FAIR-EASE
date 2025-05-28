@@ -124,10 +124,11 @@ function prepare_query(datasource::AbstractString, parameter1::String, datestart
             OrderedDict("column_name" => "latitude", "alias" => "LATITUDE")
         ]
     else
+        @info("we are here")
         queryparams = [
             OrderedDict("column_name" => parameter1, "alias" => parameter1, "skip_fill_values" => true),
             OrderedDict("column_name" => "$(parameter1).units", "alias" => "Unit"),
-            OrderedDict("column_name" => "cf_datetime", "alias" => "datetime"),
+            OrderedDict("column_name" => "JULD", "alias" => "datetime"),
             OrderedDict("column_name" => "PRES", "alias" => "DEPTH"),
             OrderedDict("column_name" => "LONGITUDE", "alias" => "LONGITUDE"),
             OrderedDict("column_name" => "LATITUDE", "alias" => "LATITUDE")
@@ -153,7 +154,7 @@ function prepare_query(datasource::AbstractString, parameter1::String, datestart
     else
         filters = [
             OrderedDict("for_query_parameter" => "datetime",
-                "min" => Dates.format(DateTime(datestart), "yyyy-mm-dd00:00:00"),
+                "min" => Dates.format(DateTime(datestart), "yyyy-mm-ddT00:00:00"),
                 "max" => Dates.format(DateTime(dateend), "yyyy-mm-ddT00:00:00"),
                 "cast" => "timestamp"),
             OrderedDict("for_query_parameter" => "DEPTH", "min" => mindepth, "max" => maxdepth),

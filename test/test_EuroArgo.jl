@@ -1,4 +1,4 @@
-#= @testset "Euro-Argo query" begin
+@testset "Euro-Argo query" begin
     datasource = "Euro-Argo"
     parameter1 = "PSAL"
     dateref = Dates.Date(1950, 1, 1)
@@ -40,7 +40,7 @@
     @test jsondata["query_parameters"][6]["column_name"] == "LATITUDE"
     @test jsondata["query_parameters"][6]["alias"] == "LATITUDE"
 
-end =#
+end 
 
 @testset "Euro-Argo download" begin
     datasource = "Euro-Argo"
@@ -76,6 +76,6 @@ end =#
         @test sort(nc["TEMP"][:])[3] == 12.468f0
         @test sort(nc["datetime"][:])[end] == DateTime("2010-03-30T11:32:44")
         @test sort(nc["LONGITUDE"][:])[1] == 15.39
-        @test sort(nc["dataset_id"][:])[5] == 2288342
+        # @test sort(nc["dataset_id"][:])[5] == 2288342 # → variable no present anymore
     end
 end
