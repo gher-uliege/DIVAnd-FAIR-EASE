@@ -55,7 +55,8 @@ Prepare the JSON query that will be passed to the API, based on the data, depth 
 """
 function prepare_query(datasource::AbstractString, parameter1::String, datestart::Date, dateend::Date, 
     mindepth::Union{Int64,Float64}, maxdepth::Union{Int64,Float64}, minlon::Union{Int64,Float64}, maxlon::Union{Int64,Float64}, 
-    minlat::Union{Int64,Float64}, maxlat::Union{Int64,Float64}; dateref::Date=Dates.Date(1950, 1, 1)
+    minlat::Union{Int64,Float64}, maxlat::Union{Int64,Float64}; dateref::Date=Dates.Date(1950, 1, 1),
+    outputformat::String="netcdf"
     )
 
     # The reference date can change according to the datasource!
@@ -166,7 +167,7 @@ function prepare_query(datasource::AbstractString, parameter1::String, datestart
     paramdict = OrderedDict(
         "query_parameters" => queryparams,
         "filters" => filters,
-        "output" => Dict("format"=> "netcdf")
+        "output" => Dict("format"=> outputformat)
     )
     body = JSON3.write(paramdict);
     return body
