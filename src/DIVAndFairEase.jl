@@ -7,10 +7,21 @@ using GeoJSON
 using Colors
 using Contour
 using Dates
+using DIVAnd
 using NCDatasets
 using OrderedCollections
 using NaNStatistics
 
+
+const beacon_services = OrderedDict(
+    "Euro-Argo" => "https://beacon-argo.maris.nl",
+    "CORA Profile" => "https://beacon-cora-pr.maris.nl",
+    "CORA Timeseries" => "https://beacon-cora-ts.maris.nl",
+    "EMODnet Chemistry" => "https://beacon-emod-chem.maris.nl",
+    "World Ocean Database" => "https://beacon-wod.maris.nl",
+    "SeaDataNet CDI TS" => "https://beacon-cdi.maris.nl",
+    "CMEMS BGC" => "https://beacon-cmems.maris.nl",
+)
 
 """
     varbyunits(footprintfile, units)
@@ -125,7 +136,6 @@ function prepare_query(datasource::AbstractString, parameter1::String, datestart
             OrderedDict("column_name" => "latitude", "alias" => "LATITUDE")
         ]
     else
-        @info("we are here")
         queryparams = [
             OrderedDict("column_name" => parameter1, "alias" => parameter1, "skip_fill_values" => true),
             OrderedDict("column_name" => "$(parameter1).units", "alias" => "Unit"),
@@ -309,5 +319,63 @@ function read_polygon_json(contourfile::AbstractString)
     return coordlist
 end
 
+function merge_datasets2(
+    lonall::Vector{Vector{Float64}},
+    latall::Vector{Vector{Float64}},
+    depthall::Vector{Vector{Float64}},
+    timesall::Vector{Vector{DateTime}},
+    obsall::Vector{Vector{Float64}},
+    Δlon::Float64,
+    Δlat::Float64,
+    Δdepth::Float64,
+    Δtime::Float64,
+    Δvar::Float64,
+)
+
+    pct = []
+
+    lons = lonall[1]
+    lats = latall[1]
+    depths = depthall[1]
+    times = timesall[1]
+    obs = obsall[1]
+
+    ndatasets = length(lonall)
+    for jjj = 2:ndatasets
+        @info("Working on dataset #$(jjj)")
+
+        @info(length(lons))
+        dupl = DIVAnd.Quadtrees.checkduplicates(
+            (lons, lats, depths, times),
+            obs,
+            (lonall[jjj], latall[jjj], depthall[jjj], timesall[jjj]),
+            obsall[jjj],
+            (Δlon, Δlat, Δdepth, Δtime),
+            Δvar,
+        )
+
+        index = findall(.!isempty.(dupl))
+        newpoints = findall(isempty.(dupl))
+        ndupl = length(index)
+        pcdupl = round(ndupl / length(lonall[jjj]) * 100; digits = 2)
+        push!(pct, pcdupl)
+        @info("Number of possible duplicates: $ndupl")
+        @info("Percentage of duplicates: $pcdupl%")
+
+        # Merging
+        lons = vcat(lons, lonall[jjj][newpoints])
+        lats = vcat(lats, latall[jjj][newpoints])
+        depths = vcat(depths, depthall[jjj][newpoints])
+        times = vcat(times, timesall[jjj][newpoints])
+        obs = vcat(obs, obsall[jjj][newpoints])
+    end
+
+    return lons::Vector{Float64},
+    lats::Vector{Float64},
+    depths::Vector{Float64},
+    times::Vector{DateTime},
+    obs::Vector{Float64},
+    pct::Vector
+end
 
 end

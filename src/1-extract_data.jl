@@ -168,6 +168,9 @@ md"""
 # ╔═╡ b24bb60b-5c93-4867-af6c-b57cd7cd2e9f
 @bind datestart html"<input type=date value='2000-01-01' min='1800-01-01' max='2100-12-31'>"
 
+# ╔═╡ 330d5952-17a6-4766-be7c-d97481edc070
+datestart
+
 # ╔═╡ 6a6793e2-6cf9-4995-9f6b-f76a1670f4c8
 md"""
 #### End date
@@ -2304,7 +2307,7 @@ version = "3.6.0+0"
 # ╟─1c7d0f5f-fcb8-4532-828f-050d3c0890ba
 # ╠═f204b1f1-a23b-418f-912a-03dda1b3c401
 # ╟─53d897d0-485a-4464-87d1-44818ca1b710
-# ╟─6d51c3f9-ad07-4059-9105-472214757206
+# ╠═6d51c3f9-ad07-4059-9105-472214757206
 # ╟─c151234e-aeb4-4e8a-8375-9799b56dfd6f
 # ╠═30cc8751-45ce-4bf2-b0db-eed3f57257b1
 # ╟─ebdfbc0a-c065-4f3f-bfc7-c9fc50fba7fa
@@ -2318,14 +2321,15 @@ version = "3.6.0+0"
 # ╟─be0d8f86-196a-4e8d-9ebc-5dc3af4bd4ef
 # ╟─7bb8540e-636f-4fc4-97bc-dbdf6035b4eb
 # ╟─8ab4d149-b817-4ddb-a7bc-15d07cb322fd
-# ╟─b24bb60b-5c93-4867-af6c-b57cd7cd2e9f
+# ╠═b24bb60b-5c93-4867-af6c-b57cd7cd2e9f
+# ╠═330d5952-17a6-4766-be7c-d97481edc070
 # ╟─6a6793e2-6cf9-4995-9f6b-f76a1670f4c8
 # ╟─7c46cb85-15cf-4900-942c-2086ac07ba94
 # ╟─c96e488c-f559-46e8-bee1-8631af5fe639
 # ╠═6d7207d7-ea88-4a14-ac64-7a4a9e7035ee
 # ╟─0b5c88a4-e68b-4674-8e70-06cffb7bcd9e
-# ╟─1628eb7f-b6ce-4b43-a7fa-e7d15988c127
-# ╟─084304e3-1160-4eba-8668-dffa3a0af6f8
+# ╠═1628eb7f-b6ce-4b43-a7fa-e7d15988c127
+# ╠═084304e3-1160-4eba-8668-dffa3a0af6f8
 # ╠═977afa41-9889-4bbc-9c08-dcb9df0f5617
 # ╟─1ec1f29a-8530-48d5-aac8-ba3792784938
 # ╠═ea5707e6-471f-427b-bedf-f61180f116ac
