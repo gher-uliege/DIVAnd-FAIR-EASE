@@ -75,10 +75,10 @@ end
     end
 
     NCDataset(outputfile) do nc
-        @test length(nc[parameter1][:]) == 9089
+        @test length(nc[parameter1][:]) == 9021
         @test parse(Float64, sort(nc[parameter1][:])[3]) == 10.01
         @test sort(nc["datetime"][:])[end] == DateTime("2010-12-15T22:06:00")
-        @test sort(nc["LONGITUDE"][:])[1] == 12.582
+        @test sort(nc["LONGITUDE"][:])[1] == 13.47667
         # @test sort(nc["dataset_id"][:])[5] == 1484490
     end
 end

@@ -66,7 +66,7 @@ Prepare the JSON query that will be passed to the API, based on the data, depth 
 """
 function prepare_query(datasource::AbstractString, parameter1::String, datestart::Date, dateend::Date, 
     mindepth::Union{Int64,Float64}, maxdepth::Union{Int64,Float64}, minlon::Union{Int64,Float64}, maxlon::Union{Int64,Float64}, 
-    minlat::Union{Int64,Float64}, maxlat::Union{Int64,Float64}; dateref::Date=Dates.Date(1950, 1, 1),
+    minlat::Union{Int64,Float64}, maxlat::Union{Int64,Float64}; dateref::Date=Dates.Date(1950, 1, 1), vmin::Float64=-9999., vmax::Float64=9999.9,
     outputformat::String="netcdf"
     )
 
@@ -147,32 +147,14 @@ function prepare_query(datasource::AbstractString, parameter1::String, datestart
     end
 
     # Filters for the coordinates and variables
-    if datasource == "SeaDataNet CDI TS"
-        filters = [
+    filters = [
             OrderedDict("for_query_parameter" =>  "datetime", "min" => Dates.format(datestart, "yyyy-mm-ddT00:00:00"), "max" => Dates.format(dateend, "yyyy-mm-ddT00:00:00"), "cast" => "timestamp"),
             OrderedDict("for_query_parameter" =>  "DEPTH", "min" => mindepth, "max" => maxdepth),
             OrderedDict("for_query_parameter" =>  "LONGITUDE", "min" => minlon, "max" => maxlon), 
-            OrderedDict("for_query_parameter" =>  "LATITUDE", "min" => minlat, "max" => maxlat)
+            OrderedDict("for_query_parameter" =>  "LATITUDE", "min" => minlat, "max" => maxlat),
+            OrderedDict("is_not_null" => Dict("for_query_parameter" => parameter1)),
+            OrderedDict("for_query_parameter" => parameter1, "min" => vmin, "max" => vmax)
         ]
-    elseif occursin("CORA", datasource)
-        @info("Working with CORA dataset")
-        filters = [
-            OrderedDict("for_query_parameter" => "datetime", "min" => Dates.format(datestart, "yyyy-mm-ddT00:00:00"), "max" => Dates.format(dateend, "yyyy-mm-ddT00:00:00"), "cast" => "timestamp"),
-            OrderedDict("for_query_parameter" => "DEPTH", "min" => mindepth, "max" => maxdepth),
-            OrderedDict("for_query_parameter" => "LONGITUDE", "min" => minlon, "max" => maxlon),
-            OrderedDict("for_query_parameter" => "LATITUDE", "min" => minlat, "max" => maxlat)
-        ]
-    else
-        filters = [
-            OrderedDict("for_query_parameter" => "datetime",
-                "min" => Dates.format(DateTime(datestart), "yyyy-mm-ddT00:00:00"),
-                "max" => Dates.format(DateTime(dateend), "yyyy-mm-ddT00:00:00"),
-                "cast" => "timestamp"),
-            OrderedDict("for_query_parameter" => "DEPTH", "min" => mindepth, "max" => maxdepth),
-            OrderedDict("for_query_parameter" => "LONGITUDE", "min" => minlon, "max" => maxlon),
-            OrderedDict("for_query_parameter" => "LATITUDE", "min" => minlat, "max" => maxlat)
-        ]
-    end
 
     paramdict = OrderedDict(
         "query_parameters" => queryparams,
