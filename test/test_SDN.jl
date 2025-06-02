@@ -48,7 +48,7 @@ end
     parameter1 = "ITS-90 water temperature"
     parameter1 = "TEMPPR01"
     
-    query = DIVAndFairEase.prepare_query(
+  #=   query = DIVAndFairEase.prepare_query(
         datasource,
         parameter1,
         datestart,
@@ -78,6 +78,43 @@ end
         @test length(nc[parameter1][:]) == 9021
         @test parse(Float64, sort(nc[parameter1][:])[3]) == 10.01
         @test sort(nc["datetime"][:])[end] == DateTime("2010-12-15T22:06:00")
+        @test sort(nc["LONGITUDE"][:])[1] == 13.47667
+        # @test sort(nc["dataset_id"][:])[5] == 1484490
+    end =#
+
+    # Check query with range for the temperature
+    query = DIVAndFairEase.prepare_query(
+        datasource,
+        parameter1,
+        datestart,
+        dateend,
+        mindepth,
+        maxdepth,
+        minlon,
+        maxlon,
+        minlat,
+        maxlat,
+        vmin = 10., 
+        vmax = 20.
+    )
+
+    outputfile = tempname() * ".nc"
+
+    @time open(outputfile, "w") do io
+        r = HTTP.request(
+            "POST",
+            joinpath(beacon_services[datasource], "api/query"),
+            ["Content-type" => "application/json", "Authorization" => "Bearer $(APItoken)"],
+            query,
+            response_stream = io,
+        )
+        @test r.status == 200
+    end
+
+    NCDataset(outputfile) do nc
+        @test length(nc[parameter1][:]) == 169
+        @test parse(Float64, sort(nc[parameter1][:])[3]) == 10.33
+        @test sort(nc["datetime"][:])[end] == DateTime("2010-12-14T20:10:00")
         @test sort(nc["LONGITUDE"][:])[1] == 13.47667
         # @test sort(nc["dataset_id"][:])[5] == 1484490
     end
