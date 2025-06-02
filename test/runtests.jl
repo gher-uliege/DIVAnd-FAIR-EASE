@@ -32,9 +32,9 @@ const beacon_services = OrderedDict(
 
 parameter1 = "TEMP"
 
-# include("./test_CORA_Timeseries.jl")
-# include("./test_CORA_Profiles.jl")
-# include("./test_WOD.jl")
+include("./test_CORA_Timeseries.jl")
+include("./test_CORA_Profiles.jl")
+include("./test_WOD.jl")
 include("./test_SDN.jl")
-# include("./test_EuroArgo.jl")
-# include("./test_parquet.jl")
+include("./test_EuroArgo.jl")
+include("./test_parquet.jl")
