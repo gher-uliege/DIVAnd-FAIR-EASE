@@ -83,7 +83,7 @@ function prepare_query(datasource::AbstractString, parameter1::String, datestart
     if datasource == "World Ocean Database"
         queryparams = [
             OrderedDict("column_name" => parameter1, "alias" => parameter1, "skip_fill_values" => true),
-            OrderedDict("column_name" => "$(parameter1).units", "alias" => "Unit"),
+            # OrderedDict("column_name" => "$(parameter1).units", "alias" => "Unit"),
             # OrderedDict("column_name" => "cf_datetime", "alias" => "datetime"),
             OrderedDict("column_name" => "time", "alias" => "datetime"),
             OrderedDict("column_name" => "z", "alias" => "DEPTH"),
@@ -148,7 +148,7 @@ function prepare_query(datasource::AbstractString, parameter1::String, datestart
 
     # Filters for the coordinates and variables
     filters = [
-            OrderedDict("for_query_parameter" =>  "datetime", "min" => Dates.format(datestart, "yyyy-mm-ddT00:00:00"), "max" => Dates.format(dateend, "yyyy-mm-ddT00:00:00"), "cast" => "timestamp"),
+            OrderedDict("for_query_parameter" =>  "datetime", "min" => Dates.format(datestart, "yyyy-mm-ddT00:00:00"), "max" => Dates.format(dateend, "yyyy-mm-ddT00:00:00")),
             OrderedDict("for_query_parameter" =>  "DEPTH", "min" => mindepth, "max" => maxdepth),
             OrderedDict("for_query_parameter" =>  "LONGITUDE", "min" => minlon, "max" => maxlon), 
             OrderedDict("for_query_parameter" =>  "LATITUDE", "min" => minlat, "max" => maxlat),

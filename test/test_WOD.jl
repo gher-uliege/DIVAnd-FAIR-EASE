@@ -36,8 +36,8 @@
 
     @test jsondata["query_parameters"][1]["column_name"] == parameter1
     @test jsondata["query_parameters"][1]["alias"] == parameter1
-    @test jsondata["query_parameters"][5]["column_name"] == "lon"
-    @test jsondata["query_parameters"][5]["alias"] == "LONGITUDE"
+    @test jsondata["query_parameters"][5]["column_name"] == "lat"
+    @test jsondata["query_parameters"][5]["alias"] == "LATITUDE"
 
 end
 

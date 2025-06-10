@@ -56,4 +56,11 @@ and the notebook interface got open in your browser.
 
 Select the file called `get_argo_data_pluto.jl`.
 
+## Running a climatology in `D4Science`
 
+### Cannot create directory
+
+It is possible to create it from the graphical interface, but not from a Julia command:
+```
+IOError: mkdir("../data"; mode=0o777): permission denied (EACCES)
+```
