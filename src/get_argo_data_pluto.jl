@@ -1,17 +1,19 @@
 ### A Pluto.jl notebook ###
-# v0.19.46
+# v0.20.9
 
 using Markdown
 using InteractiveUtils
 
 # This Pluto notebook uses @bind for interactivity. When running this notebook outside of Pluto, the following 'mock version' of @bind gives bound variables a default value (instead of an error).
 macro bind(def, element)
-    quote
+    #! format: off
+    return quote
         local iv = try Base.loaded_modules[Base.PkgId(Base.UUID("6e696c72-6542-2067-7265-42206c756150"), "AbstractPlutoDingetjes")].Bonds.initial_value catch; b -> missing; end
         local el = $(esc(element))
         global $(esc(def)) = Core.applicable(Base.get, el) ? Base.get(el) : iv(el)
         el
     end
+    #! format: on
 end
 
 # ╔═╡ 557eda82-f679-11ee-274e-37137b03fb0f
@@ -836,7 +838,6 @@ end
   ╠═╡ =#
 
 # ╔═╡ e6577f5a-00ba-4ea8-bce7-c952b7abc500
-#=╠═╡
 """
 	function write_field_json(lon, lat, field2D, Δvar)
 
@@ -868,12 +869,9 @@ function write_field_json(lon, lat, field2D::Matrix{AbstractFloat}, Δvar::Float
 	return fieldjson, thestring
     
 end;
-  ╠═╡ =#
 
 # ╔═╡ 26dddf63-91a3-4520-9f2c-9a8c654902d5
-#=╠═╡
 fieldjson, colorfunction = write_field_json(lon, lat, field[:,:,depthindex,timeindex], 0.02);
-  ╠═╡ =#
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
