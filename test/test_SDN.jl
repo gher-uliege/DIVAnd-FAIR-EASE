@@ -17,6 +17,8 @@
         maxlat,
     )
 
+    show(query)
+
     jsondata = JSON3.read(query)
 
     @test length(keys(jsondata)) == 3
