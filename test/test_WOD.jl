@@ -3,9 +3,12 @@
     datasource = "World Ocean Database"
 
     parameter1 = "Temperature"
+    parameter1QF = "Temperature_WODflag"
+
     query = DIVAndFairEase.prepare_query(
         datasource,
         parameter1,
+        parameter1QF,
         datestart,
         dateend,
         mindepth,
@@ -26,27 +29,30 @@
     @test jsondata["filters"][1]["min"] == Dates.format(datestart, "yyyy-mm-ddT00:00:00")
     @test jsondata["filters"][1]["max"] == Dates.format(dateend, "yyyy-mm-ddT00:00:00")
 
-    @test jsondata["filters"][2]["for_query_parameter"] == "DEPTH"
+    @test jsondata["filters"][2]["for_query_parameter"] == "depth"
     @test jsondata["filters"][2]["min"] == mindepth
     @test jsondata["filters"][2]["max"] == maxdepth
 
-    @test jsondata["filters"][3]["for_query_parameter"] == "LONGITUDE"
+    @test jsondata["filters"][3]["for_query_parameter"] == "longitude"
     @test jsondata["filters"][3]["min"] == minlon
     @test jsondata["filters"][3]["max"] == maxlon
 
     @test jsondata["query_parameters"][1]["column_name"] == parameter1
-    @test jsondata["query_parameters"][1]["alias"] == parameter1
-    @test jsondata["query_parameters"][5]["column_name"] == "lat"
-    @test jsondata["query_parameters"][5]["alias"] == "LATITUDE"
+    @test jsondata["query_parameters"][1]["alias"] == "sea_water_temperature"
+    @test jsondata["query_parameters"][5]["column_name"] == "lon"
+    @test jsondata["query_parameters"][5]["alias"] == "longitude"
 
 end
 
 @testset "WOD download" begin
     datasource = "World Ocean Database"
     parameter1 = "Temperature"
+    parameter1QF = "Temperature_WODflag"
+
     query = DIVAndFairEase.prepare_query(
         datasource,
         parameter1,
+        parameter1QF,
         datestart,
         dateend,
         mindepth,
@@ -71,10 +77,10 @@ end
     end
 
     NCDataset(outputfile) do nc
-        @test length(nc["Temperature"][:]) == 17
-        @test sort(nc["Temperature"][:])[3] == 12.563f0
+        @test length(nc["sea_water_temperature"][:]) == 17
+        @test sort(nc["sea_water_temperature"][:])[3] == 12.563f0
         @test sort(nc["datetime"][:])[end] == DateTime("2010-03-30T11:31:51")
-        @test sort(nc["LONGITUDE"][:])[1] == 15.39f0
+        @test sort(nc["longitude"][:])[1] == 15.39f0
         # @test sort(nc["dataset_id"][:])[5] == 11467418 # → variable doesn't exist anymore
     end
 end

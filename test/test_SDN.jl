@@ -1,12 +1,13 @@
 
 @testset "SeaDataNet CDI TS" begin
     datasource = "SeaDataNet CDI TS"
-    parameter1 = "ITS-90 water temperature"
     parameter1 = "TEMPPR01"
+    parameter1QF = "TEMPPR01_SEADATANET_QC"
 
     query = DIVAndFairEase.prepare_query(
         datasource,
         parameter1,
+        parameter1QF,
         datestart,
         dateend,
         mindepth,
@@ -29,27 +30,27 @@
     @test jsondata["filters"][1]["min"] == Dates.format(datestart, "yyyy-mm-ddT00:00:00")
     @test jsondata["filters"][1]["max"] == Dates.format(dateend, "yyyy-mm-ddT00:00:00")
 
-    @test jsondata["filters"][2]["for_query_parameter"] == "DEPTH"
+    @test jsondata["filters"][2]["for_query_parameter"] == "depth"
     @test jsondata["filters"][2]["min"] == mindepth
     @test jsondata["filters"][2]["max"] == maxdepth
 
-    @test jsondata["filters"][3]["for_query_parameter"] == "LONGITUDE"
+    @test jsondata["filters"][3]["for_query_parameter"] == "longitude"
     @test jsondata["filters"][3]["min"] == minlon
     @test jsondata["filters"][3]["max"] == maxlon
 
     @test jsondata["query_parameters"][1]["column_name"] == parameter1
-    @test jsondata["query_parameters"][1]["alias"] == parameter1
+    @test jsondata["query_parameters"][1]["alias"] == "sea_water_temperature"
     @test jsondata["query_parameters"][5]["column_name"] == "LONGITUDE"
-    @test jsondata["query_parameters"][5]["alias"] == "LONGITUDE"
+    @test jsondata["query_parameters"][5]["alias"] == "longitude"
 
 end
 
 
 @testset "SDN download" begin
     datasource = "SeaDataNet CDI TS"
-    parameter1 = "ITS-90 water temperature"
     parameter1 = "TEMPPR01"
-    
+    parameter1QF = "TEMPPR01_SEADATANET_QC"
+
   #=   query = DIVAndFairEase.prepare_query(
         datasource,
         parameter1,
@@ -88,6 +89,7 @@ end
     query = DIVAndFairEase.prepare_query(
         datasource,
         parameter1,
+        parameter1QF,
         datestart,
         dateend,
         mindepth,
@@ -114,10 +116,10 @@ end
     end
 
     NCDataset(outputfile) do nc
-        @test length(nc[parameter1][:]) == 169
-        @test parse(Float64, sort(nc[parameter1][:])[3]) == 10.33
+        @test length(nc["sea_water_temperature"][:]) == 169
+        @test parse(Float64, sort(nc["sea_water_temperature"][:])[3]) == 10.33
         @test sort(nc["datetime"][:])[end] == DateTime("2010-12-14T20:10:00")
-        @test sort(nc["LONGITUDE"][:])[1] == 13.47667
+        @test sort(nc["longitude"][:])[1] == 13.47667
         # @test sort(nc["dataset_id"][:])[5] == 1484490
     end
 end

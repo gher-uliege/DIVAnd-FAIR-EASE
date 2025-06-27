@@ -3,11 +3,12 @@ using Tables
 
 datasource = "Euro-Argo"
 parameter1 = "TEMP"
-dateref = Dates.Date(1950, 1, 1)
+parameter1QF = "TEMP_QC"
 
 query = DIVAndFairEase.prepare_query(
     datasource,
     parameter1,
+    parameter1QF,
     datestart,
     dateend,
     mindepth,
